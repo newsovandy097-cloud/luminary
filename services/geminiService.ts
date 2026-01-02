@@ -1,31 +1,9 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to safely get the API key from the environment
-const getApiKey = () => {
-  // Priority 1: standard process.env (injected by bundlers)
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-  // Priority 2: global window variable (sometimes used in pure ESM environments)
-  if (typeof window !== 'undefined' && (window as any).API_KEY) {
-    return (window as any).API_KEY;
-  }
-  // Priority 3: check for a common Vercel prefix if the standard one is missing
-  if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) {
-    return (process.env as any).NEXT_PUBLIC_API_KEY;
-  }
-  return null;
-};
-
 // Helper to get or create AI instance
 const getAI = () => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.error("LUMINARY ERROR: API_KEY is missing from the environment.");
-    throw new Error("API Key not found. Please ensure you have added 'API_KEY' to your Vercel environment variables AND performed a 'Redeploy' of your project.");
-  }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Audio Context Singleton

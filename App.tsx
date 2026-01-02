@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -14,7 +14,6 @@ const App = () => {
   const [levelXp, setLevelXp] = useState(0);
   const [history, setHistory] = useState<DailyLesson[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [apiKeyDetected, setApiKeyDetected] = useState<boolean>(false);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -40,16 +39,6 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Advanced check for API Key presence across common hosting injection points
-    const checkKey = () => {
-      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
-      if ((window as any).API_KEY) return true;
-      if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) return true;
-      return false;
-    };
-    
-    setApiKeyDetected(checkKey());
-
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
@@ -407,17 +396,6 @@ const App = () => {
              </div>
           </div>
 
-          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border border-gray-100 dark:border-zinc-800 transition-colors">
-            {apiKeyDetected ? (
-              <ShieldCheck className="text-emerald-500" size={14} />
-            ) : (
-              <ShieldAlert className="text-amber-500 animate-pulse" size={14} />
-            )}
-            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-zinc-500">
-              ENGINE STATUS: {apiKeyDetected ? 'CONNECTED' : 'DISCONNECTED (KEY MISSING)'}
-            </span>
-          </div>
-
           <div className="space-y-4">
             <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <Award size={14} /> <span>Skill Intensity</span>
@@ -552,14 +530,10 @@ const App = () => {
         <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Connection Failed</h2>
         
         <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-red-100 dark:border-red-900/30 mb-8 max-w-sm w-full shadow-inner text-left">
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> Critical Action Required</p>
-            <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
-               Even if you have entered the API Key in Vercel, you must go to the <span className="underline">Deployments</span> tab and click <span className="underline font-black">Redeploy</span> for the changes to take effect.
-            </p>
             <div className="p-4 bg-gray-50 dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Raw Error Log</p>
                <p className="text-[10px] font-mono text-red-400 truncate italic">
-                  "{lastError || 'System environment variable API_KEY not found.'}"
+                  "{lastError || 'Unknown Error'}"
                </p>
             </div>
         </div>
