@@ -1,9 +1,25 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to get or create AI instance
+// Helper to get or create AI instance securely
 const getAI = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  let key = '';
+  
+  // 1. Check standard process.env (Node/CRA/Next.js)
+  if (typeof process !== 'undefined' && process.env) {
+    key = process.env.API_KEY || process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || '';
+  }
+
+  // 2. Check import.meta.env (Vite standard)
+  if (!key && typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    key = (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY || '';
+  }
+
+  if (!key) {
+    throw new Error("Authentication Error: API Key is missing. Please set VITE_API_KEY in your Vercel Environment Variables.");
+  }
+
+  return new GoogleGenAI({ apiKey: key });
 };
 
 // Audio Context Singleton
