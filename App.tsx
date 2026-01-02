@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert, ArrowUpCircle } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -40,8 +40,15 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Check for API Key presence
-    setApiKeyDetected(!!process.env.API_KEY);
+    // Advanced check for API Key presence across common hosting injection points
+    const checkKey = () => {
+      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
+      if ((window as any).API_KEY) return true;
+      if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) return true;
+      return false;
+    };
+    
+    setApiKeyDetected(checkKey());
 
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
@@ -404,10 +411,10 @@ const App = () => {
             {apiKeyDetected ? (
               <ShieldCheck className="text-emerald-500" size={14} />
             ) : (
-              <ShieldAlert className="text-amber-500" size={14} />
+              <ShieldAlert className="text-amber-500 animate-pulse" size={14} />
             )}
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-zinc-500">
-              API KEY: {apiKeyDetected ? 'DETECTED' : 'MISSING FROM VERCEL'}
+              ENGINE STATUS: {apiKeyDetected ? 'CONNECTED' : 'DISCONNECTED (KEY MISSING)'}
             </span>
           </div>
 
@@ -544,16 +551,22 @@ const App = () => {
         </div>
         <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Connection Failed</h2>
         
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-red-100 dark:border-red-900/30 mb-8 max-w-sm w-full shadow-inner">
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2">Diagnostic Report</p>
-            <p className="text-sm font-medium text-gray-700 dark:text-zinc-300 leading-relaxed overflow-hidden text-ellipsis italic">
-               "{lastError || 'We couldn\'t reach the communication engine.'}"
+        <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-red-100 dark:border-red-900/30 mb-8 max-w-sm w-full shadow-inner text-left">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> Critical Action Required</p>
+            <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
+               Even if you have entered the API Key in Vercel, you must go to the <span className="underline">Deployments</span> tab and click <span className="underline font-black">Redeploy</span> for the changes to take effect.
             </p>
+            <div className="p-4 bg-gray-50 dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
+               <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Raw Error Log</p>
+               <p className="text-[10px] font-mono text-red-400 truncate italic">
+                  "{lastError || 'System environment variable API_KEY not found.'}"
+               </p>
+            </div>
         </div>
 
         <div className="flex flex-col w-full max-w-xs gap-3">
             <button onClick={handleStartLesson} className="bg-ink dark:bg-red-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-500 transition-all shadow-xl flex items-center justify-center gap-3">
-              <RefreshCcw size={20} /> Try Again
+              <RefreshCcw size={20} /> Retry Handshake
             </button>
             <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white dark:bg-zinc-800 text-ink dark:text-paper px-8 py-5 rounded-3xl font-black uppercase tracking-widest border border-gray-100 dark:border-zinc-700 shadow-sm transition-all">
               Return Home

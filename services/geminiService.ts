@@ -1,12 +1,29 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
+// Helper to safely get the API key from the environment
+const getApiKey = () => {
+  // Priority 1: standard process.env (injected by bundlers)
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Priority 2: global window variable (sometimes used in pure ESM environments)
+  if (typeof window !== 'undefined' && (window as any).API_KEY) {
+    return (window as any).API_KEY;
+  }
+  // Priority 3: check for a common Vercel prefix if the standard one is missing
+  if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) {
+    return (process.env as any).NEXT_PUBLIC_API_KEY;
+  }
+  return null;
+};
+
 // Helper to get or create AI instance
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("LUMINARY ERROR: API_KEY is missing from process.env.");
-    throw new Error("API Key is missing. Ensure the 'API_KEY' environment variable is correctly set in your Vercel project settings.");
+    console.error("LUMINARY ERROR: API_KEY is missing from the environment.");
+    throw new Error("API Key not found. Please ensure you have added 'API_KEY' to your Vercel environment variables AND performed a 'Redeploy' of your project.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -131,13 +148,11 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       data.level = level;
       return data;
     } else {
-      throw new Error("The AI returned an empty response. This usually happens during high traffic or if the safety filters were triggered.");
+      throw new Error("Empty response from AI. Possible safety filter trigger.");
     }
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
-    // Extract more detail from GoogleGenAI errors if possible
-    const message = error.message || "Unknown API Error";
-    throw new Error(message);
+    throw new Error(error.message || "Failed to generate lesson content.");
   }
 };
 
@@ -159,7 +174,7 @@ export const getSimulationReply = async (
     return response.text || "...";
   } catch (e: any) {
     console.error("Simulation Reply Error:", e);
-    return "I'm having trouble connecting to the coach. " + (e.message || "");
+    return "The communication engine is struggling to respond. Error: " + (e.message || "");
   }
 };
 
@@ -225,8 +240,8 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
 };
 
 export const playTextToSpeech = async (text: string): Promise<void> => {
-  const ai = getAI();
   try {
+    const ai = getAI();
     const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
     if (!sanitizedText || sanitizedText.length < 2) return;
 
