@@ -1,12 +1,19 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get or create AI instance
+const getAI = () => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing. Please ensure process.env.API_KEY is configured.");
+  }
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
 // Audio Context Singleton
 let audioContext: AudioContext | null = null;
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   
   const vibeInstructions = {
@@ -145,6 +152,7 @@ export const getSimulationReply = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string }
 ): Promise<string> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
@@ -173,6 +181,7 @@ export const evaluateSimulation = async (
     history: { role: string; text: string }[],
     objective: string
 ): Promise<SimulationFeedback> => {
+    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
@@ -213,6 +222,7 @@ export const evaluateSimulation = async (
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
+    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const prompt = `
         User is practicing the word: "${word}" (Definition: ${definition}).
@@ -246,6 +256,7 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
 };
 
 export const playTextToSpeech = async (text: string): Promise<void> => {
+  const ai = getAI();
   try {
     const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
     if (!sanitizedText || sanitizedText.length < 2) return;
