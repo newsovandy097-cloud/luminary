@@ -176,7 +176,21 @@ const App = () => {
         y += 6;
         doc.setFont("helvetica", "italic");
         doc.text(`"${v.simpleDefinition}"`, margin + 10, y);
-        y += 10;
+        y += 8;
+        // Handle example sentences array
+        if (v.exampleSentences && v.exampleSentences.length > 0) {
+           doc.setFontSize(9);
+           doc.setFont("helvetica", "normal");
+           v.exampleSentences.forEach(ex => {
+              doc.text(`• "${ex}"`, margin + 12, y);
+              y += 5;
+           });
+           y += 5;
+        } else {
+           // Fallback for old data
+           doc.text(`"${(v as any).exampleSentence}"`, margin + 10, y);
+           y += 10;
+        }
     });
 
     y += 5;

@@ -60,10 +60,10 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
         </div>
     </div>
     
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto hide-scrollbar">
       <div className="flex items-center justify-between mb-4">
           <h2 className="text-5xl font-serif font-black text-ink dark:text-paper tracking-tight leading-none">{current.word}</h2>
-          <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90">
+          <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90 flex-shrink-0">
             {isPlaying ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
           </button>
       </div>
@@ -78,12 +78,24 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
         </p>
       </div>
 
-      <div className="space-y-4">
-          <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm">
-              <h3 className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-3">Model Usage</h3>
-              <p className="text-lg font-serif text-ink dark:text-paper italic leading-relaxed">"{current.exampleSentence}"</p>
-          </div>
-          <p className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium bg-gray-50 dark:bg-zinc-800 px-3 py-2 rounded-lg inline-block">Etymology: {current.etymology}</p>
+      <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm">
+          <h3 className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-3">Model Usages</h3>
+          <ul className="space-y-3">
+            {current.exampleSentences && current.exampleSentences.length > 0 ? (
+                current.exampleSentences.map((sentence, idx) => (
+                    <li key={idx} className="text-base font-serif text-ink dark:text-paper italic leading-relaxed pl-3 border-l-2 border-indigo-100 dark:border-indigo-800">
+                        "{sentence}"
+                    </li>
+                ))
+            ) : (
+                <li className="text-base font-serif text-ink dark:text-paper italic leading-relaxed">
+                   "{ (current as any).exampleSentence }"
+                </li>
+            )}
+          </ul>
+      </div>
+      <div className="mt-4 text-right">
+        <p className="text-[10px] text-gray-400 dark:text-zinc-500 font-medium px-2 inline-block">Etymology: {current.etymology}</p>
       </div>
     </div>
 

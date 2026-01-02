@@ -7,7 +7,7 @@ export interface Vocabulary {
   definition: string;
   simpleDefinition: string; // "In plain English"
   etymology: string;
-  exampleSentence: string;
+  exampleSentences: string[]; // Changed to array for 3 examples
 }
 
 export interface Concept {

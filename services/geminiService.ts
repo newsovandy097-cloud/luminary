@@ -22,8 +22,9 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
-// Audio Context Singleton
+// Audio Context & Cache Singleton
 let audioContext: AudioContext | null = null;
+const audioCache = new Map<string, AudioBuffer>();
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
   const ai = getAI();
@@ -60,6 +61,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     Vibe: ${vibeInstructions[vibe]}
     Theme: ${themeContext}
     Goal: Micro-learning session JSON.
+    Requirement: Provide exactly 3 distinct example sentences for each vocabulary word.
   `;
 
   try {
@@ -82,9 +84,13 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                   definition: { type: Type.STRING },
                   simpleDefinition: { type: Type.STRING },
                   etymology: { type: Type.STRING },
-                  exampleSentence: { type: Type.STRING },
+                  exampleSentences: { 
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: "3 distinct example sentences using the word."
+                  },
                 },
-                required: ["word", "pronunciation", "definition", "simpleDefinition", "etymology", "exampleSentence"]
+                required: ["word", "pronunciation", "definition", "simpleDefinition", "etymology", "exampleSentences"]
               }
             },
             concept: {
@@ -235,10 +241,23 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
 
 export const playTextToSpeech = async (text: string): Promise<void> => {
   try {
-    const ai = getAI();
     const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
     if (!sanitizedText || sanitizedText.length < 2) return;
 
+    // Initialize Audio Context
+    if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
+    // CHECK CACHE FIRST
+    if (audioCache.has(sanitizedText)) {
+      const cachedBuffer = audioCache.get(sanitizedText);
+      if (cachedBuffer) {
+        await playAudioBuffer(cachedBuffer, audioContext);
+        return;
+      }
+    }
+
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: sanitizedText,
@@ -253,20 +272,26 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (base64Audio) await playRawAudio(base64Audio);
+    if (base64Audio) {
+      const audioBuffer = await decodeAudioData(decode(base64Audio), audioContext, 24000, 1);
+      // STORE IN CACHE
+      audioCache.set(sanitizedText, audioBuffer);
+      await playAudioBuffer(audioBuffer, audioContext);
+    }
   } catch (error) {
     console.error("TTS Error:", error);
   }
 }
 
-async function playRawAudio(base64String: string) {
-  if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-  if (audioContext.state === 'suspended') await audioContext.resume();
-  const audioBuffer = await decodeAudioData(decode(base64String), audioContext, 24000, 1);
-  const source = audioContext.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(audioContext.destination);
+async function playAudioBuffer(buffer: AudioBuffer, context: AudioContext) {
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
   source.start();
+  // Return a promise that resolves when audio finishes
+  return new Promise<void>((resolve) => {
+    source.onended = () => resolve();
+  });
 }
 
 function decode(base64: string) {
