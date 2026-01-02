@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -66,7 +66,6 @@ const App = () => {
         } catch (e) { console.error(e); }
     }
 
-    // Listen for install prompt
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -74,13 +73,9 @@ const App = () => {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
-  // Update document class when theme changes
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -97,9 +92,7 @@ const App = () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
-    }
+    if (outcome === 'accepted') setIsInstallable(false);
     setDeferredPrompt(null);
   };
 
@@ -137,7 +130,10 @@ const App = () => {
       setCurrentSimLog([]);
       setCurrentFeedback(null);
       setAppState(AppState.LESSON);
-    } catch (e) { setAppState(AppState.ERROR); }
+    } catch (e) { 
+      console.error("Lesson Start Failure:", e);
+      setAppState(AppState.ERROR); 
+    }
   };
 
   const handleReviewLesson = (pastLesson: DailyLesson) => {
@@ -299,15 +295,11 @@ const App = () => {
               </button>
               <h1 className="font-serif text-3xl font-black text-ink dark:text-paper">Your Profile</h1>
             </div>
-            <button 
-              onClick={toggleTheme}
-              className="p-3 bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-700 text-ink dark:text-paper hover:scale-110 transition-transform"
-            >
+            <button onClick={toggleTheme} className="p-3 bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-700 text-ink dark:text-paper hover:scale-110 transition-transform">
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </header>
 
-          {/* Photo Section */}
           <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-zinc-800 text-center relative overflow-hidden">
              <div className="relative inline-block group">
                 <div className="w-32 h-32 bg-gray-100 dark:bg-zinc-800 rounded-[2rem] border-4 border-white dark:border-zinc-700 shadow-xl overflow-hidden flex items-center justify-center">
@@ -317,10 +309,7 @@ const App = () => {
                       <User size={64} className="text-gray-300 dark:text-zinc-600" />
                    )}
                 </div>
-                <button 
-                   onClick={() => fileInputRef.current?.click()}
-                   className="absolute bottom-0 right-0 bg-ink dark:bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all border-2 border-white dark:border-zinc-900"
-                >
+                <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-ink dark:bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all border-2 border-white dark:border-zinc-900">
                    <Camera size={16} />
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" accept="image/*" />
@@ -342,43 +331,29 @@ const App = () => {
              </div>
           </div>
 
-          {/* App Installation Prompt */}
           {isInstallable && (
             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 rounded-[2rem] shadow-lg text-white">
               <div className="flex items-center gap-4 mb-4">
-                <div className="bg-white/20 p-3 rounded-2xl">
-                  <MonitorSmartphone size={24} />
-                </div>
+                <div className="bg-white/20 p-3 rounded-2xl"><MonitorSmartphone size={24} /></div>
                 <div>
                   <h3 className="font-black text-sm uppercase tracking-widest">Install Luminary</h3>
                   <p className="text-[10px] opacity-90 font-medium">Add to home screen for quick daily access.</p>
                 </div>
               </div>
-              <button 
-                onClick={handleInstallClick}
-                className="w-full bg-white text-emerald-700 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all"
-              >
-                <PlusCircle size={16} />
-                Get Web App
+              <button onClick={handleInstallClick} className="w-full bg-white text-emerald-700 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all">
+                <PlusCircle size={16} /> Get Web App
               </button>
             </div>
           )}
 
           <div className="bg-ink dark:bg-indigo-950/30 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-white/5 dark:border-indigo-500/20">
-             <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Info size={120} />
-             </div>
+             <div className="absolute top-0 right-0 p-4 opacity-10"><Info size={120} /></div>
              <div className="relative">
-                <h3 className="flex items-center gap-2 font-black text-xs uppercase tracking-[0.2em] mb-4 text-indigo-400">
-                   <Target size={14} /> About Luminary
-                </h3>
-                <p className="text-sm font-medium leading-relaxed opacity-80 mb-6">
-                   Luminary is designed to be your daily rhetorical coach. In just 15 minutes, we decode the patterns of world-class communicators to help you speak with precision, presence, and impact.
-                </p>
+                <h3 className="flex items-center gap-2 font-black text-xs uppercase tracking-[0.2em] mb-4 text-indigo-400"><Target size={14} /> About Luminary</h3>
+                <p className="text-sm font-medium leading-relaxed opacity-80 mb-6">Luminary is designed to be your daily rhetorical coach. In just 15 minutes, we decode the patterns of world-class communicators.</p>
                 <div className="pt-4 border-t border-white/10">
                    <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Created By</p>
                    <p className="text-sm font-bold text-white">Sovandy</p>
-                   <p className="text-[9px] font-medium text-indigo-300 uppercase tracking-widest mt-1">For personal development</p>
                 </div>
              </div>
           </div>
@@ -397,10 +372,7 @@ const App = () => {
                 <h1 className="font-serif text-4xl font-black text-ink dark:text-paper">Luminary</h1>
             </div>
             <div className="flex gap-3">
-              <button 
-                onClick={toggleTheme}
-                className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center border-2 border-gray-100 dark:border-zinc-700 shadow-sm text-ink dark:text-paper transition-all hover:scale-105"
-              >
+              <button onClick={toggleTheme} className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center border-2 border-gray-100 dark:border-zinc-700 shadow-sm text-ink dark:text-paper transition-all hover:scale-105">
                 {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
               </button>
               <button onClick={() => setShowProfile(true)} className="w-12 h-12 bg-white dark:bg-zinc-800 rounded-2xl flex items-center justify-center border-2 border-gray-100 dark:border-zinc-700 shadow-sm text-gray-400 dark:text-zinc-500 overflow-hidden hover:scale-105 transition-transform">
@@ -448,8 +420,7 @@ const App = () => {
                   { id: 'Mindset', icon: Brain },
                 ].map((t) => (
                     <button key={t.id} onClick={() => setSelectedTheme(t.id)} className={`flex-1 min-w-[80px] py-2 flex items-center justify-center gap-1.5 text-[8px] sm:text-[10px] font-black uppercase rounded-xl transition-all ${selectedTheme === t.id ? 'bg-white dark:bg-zinc-700 text-ink dark:text-paper shadow-md scale-[1.05]' : 'text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300'}`}>
-                      <t.icon size={12} />
-                      {t.id}
+                      <t.icon size={12} /> {t.id}
                     </button>
                 ))}
             </div>
@@ -458,9 +429,7 @@ const App = () => {
           {memoryAnchor && !anchorCompleted && (
               <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-[1.5px] rounded-[2rem] shadow-lg transform transition-all hover:scale-[1.01]">
                   <div className="bg-white dark:bg-zinc-900 p-5 rounded-[calc(2rem-1px)]">
-                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-black text-[10px] uppercase tracking-widest mb-3">
-                        <Brain size={14} /> <span>Daily Recall</span>
-                      </div>
+                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-black text-[10px] uppercase tracking-widest mb-3"><Brain size={14} /> <span>Daily Recall</span></div>
                       <p className="text-center font-serif text-3xl font-black text-ink dark:text-paper mb-4">{memoryAnchor.word}</p>
                       {!anchorRevealed ? (
                           <button onClick={() => setAnchorRevealed(true)} className="w-full bg-gray-50 dark:bg-zinc-800 text-gray-800 dark:text-paper py-3 rounded-2xl text-sm font-bold border border-gray-100 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-all uppercase tracking-widest">Reveal</button>
@@ -507,20 +476,14 @@ const App = () => {
               <h2 className="text-2xl font-serif font-black mb-1">Enter Session</h2>
               <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">{selectedLevel.toUpperCase()} LEVEL • {selectedTheme.toUpperCase()} • {selectedVibe.toUpperCase()}</p>
             </div>
-            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center group-hover:bg-white/20 transition-all">
-               <ChevronRight size={28} />
-            </div>
+            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center group-hover:bg-white/20 transition-all"><ChevronRight size={28} /></div>
           </button>
 
           <div className="pt-6">
-            <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2">
-                <History size={14}/> <span>Previous Insights</span>
-            </h3>
+            <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2"><History size={14}/> <span>Previous Insights</span></h3>
             <div className="space-y-3">
                 {history.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400 dark:text-zinc-600 bg-white dark:bg-zinc-900 rounded-[2.5rem] border-2 border-dashed border-gray-100 dark:border-zinc-800">
-                        <p className="text-[10px] font-black uppercase tracking-widest">Your log is empty</p>
-                    </div>
+                    <div className="text-center py-12 text-gray-400 dark:text-zinc-600 bg-white dark:bg-zinc-900 rounded-[2.5rem] border-2 border-dashed border-gray-100 dark:border-zinc-800"><p className="text-[10px] font-black uppercase tracking-widest">Your log is empty</p></div>
                 ) : (
                     history.map((item) => (
                         <div key={item.id} onClick={() => handleReviewLesson(item)} className="bg-white dark:bg-zinc-900 p-5 rounded-[1.5rem] border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-center group">
@@ -555,13 +518,31 @@ const App = () => {
     );
   }
 
+  if (appState === AppState.ERROR) {
+    return (
+      <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center justify-center p-6 text-center transition-colors">
+        <div className="w-24 h-24 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-[2rem] flex items-center justify-center mb-10 shadow-lg">
+            <AlertCircle size={48} />
+        </div>
+        <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Connection Failed</h2>
+        <p className="text-gray-600 dark:text-zinc-400 text-lg mb-10 max-w-xs font-medium leading-relaxed">We couldn't reach the communication engine. Check your API Key configuration or connection.</p>
+        <div className="flex flex-col w-full max-w-xs gap-3">
+            <button onClick={handleStartLesson} className="bg-ink dark:bg-red-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-500 transition-all shadow-xl flex items-center justify-center gap-3">
+              <RefreshCcw size={20} /> Try Again
+            </button>
+            <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white dark:bg-zinc-800 text-ink dark:text-paper px-8 py-5 rounded-3xl font-black uppercase tracking-widest border border-gray-100 dark:border-zinc-700 shadow-sm transition-all">
+              Return Home
+            </button>
+        </div>
+      </div>
+    );
+  }
+
   if (appState === AppState.COMPLETED) {
     return (
       <div className="min-h-screen bg-ink dark:bg-black text-white flex flex-col items-center justify-center p-6 text-center animate-fade-in overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-indigo-600 animate-gradient-x"></div>
-        <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center text-white mb-10 shadow-2xl rotate-12">
-            <Trophy size={48} />
-        </div>
+        <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center text-white mb-10 shadow-2xl rotate-12"><Trophy size={48} /></div>
         <h2 className="text-5xl font-serif font-black mb-4">Level Up.</h2>
         <p className="text-indigo-200 text-lg mb-12 max-w-sm font-medium">Session complete. You've earned 150 XP towards your next rank.</p>
         <div className="flex flex-col w-full max-w-xs gap-4 relative z-10">

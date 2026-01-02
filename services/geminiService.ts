@@ -3,10 +3,12 @@ import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 // Helper to get or create AI instance
 const getAI = () => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Please ensure process.env.API_KEY is configured.");
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("FATAL: process.env.API_KEY is undefined. Ensure the API_KEY environment variable is set in Vercel.");
+    throw new Error("API Key is missing.");
   }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 // Audio Context Singleton
@@ -43,28 +45,19 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
 
   const prompt = `
     You are a friendly, charismatic communication coach. Your goal is to help a user become more interesting and well-spoken.
-    
     Target Skill Level: ${level.toUpperCase()}
     Level Guidance: ${levelDescriptions[level]}
     Current Vibe Setting: ${vibeInstructions[vibe]}
     Theme/Topic Requirement: ${themeContext}
     
     Create a micro-learning session for this level.
-    
-    Structure the response to include:
-    1. **Vocabularies**: Provide 3 high-impact words matching the level, vibe, and theme. 
-    2. **Concept**: A mental model or communication tip. Provide an "Analogy".
-    3. **Simulation**: Create a roleplay scenario related to the theme.
-    4. **Story**: A short (150 words) story about a real figure illustrating the theme.
-    5. **Challenge**: A specific social challenge for today.
-
-    Output must be valid JSON.
+    Structure the response as JSON matching the schema exactly.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -130,8 +123,9 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       }
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text) as DailyLesson;
+    const text = response.text;
+    if (text) {
+      const data = JSON.parse(text) as DailyLesson;
       const now = new Date();
       data.id = now.getTime().toString(); 
       data.date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -157,23 +151,22 @@ export const getSimulationReply = async (
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
   const prompt = `
-    Roleplay Simulation.
-    Setting: ${scenario.setting}
+    Roleplay Simulation. Setting: ${scenario.setting}
     Your Role: ${scenario.role}
     Conversation:
     ${conversation}
-    
-    Respond as ${scenario.role}. Keep it short (under 2 sentences). Be natural.
+    Respond as ${scenario.role}. Short (under 2 sentences). Natural.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
     });
     return response.text || "...";
   } catch (e) {
-    return "I'm sorry, can you say that again?";
+    console.error("Simulation Reply Error:", e);
+    return "I'm sorry, I missed that. Can you repeat?";
   }
 };
 
@@ -186,22 +179,16 @@ export const evaluateSimulation = async (
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
     const prompt = `
-        You are a communication coach.
-        Objective: ${objective}
+        Coach Evaluation for: ${objective}
         Conversation History:
         ${conversation}
-        
-        Analyze the user's performance.
-        Return JSON with:
-        1. score (1-10)
-        2. feedback (1 strong sentence)
-        3. suggestion (A specific "Try saying this instead" example)
+        Return JSON with score (1-10), feedback (1 strong sentence), and suggestion.
     `;
 
     try {
         const response = await ai.models.generateContent({
             model: modelId,
-            contents: prompt,
+            contents: [{ parts: [{ text: prompt }] }],
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -217,7 +204,8 @@ export const evaluateSimulation = async (
         });
         return JSON.parse(response.text || "{}") as SimulationFeedback;
     } catch (e) {
-        return { score: 7, feedback: "Solid attempt at keeping the flow going.", suggestion: "Try using more descriptive adjectives." };
+        console.error("Simulation Evaluation Error:", e);
+        return { score: 7, feedback: "Good effort!", suggestion: "Keep practicing!" };
     }
 };
 
@@ -225,18 +213,15 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const prompt = `
-        User is practicing the word: "${word}" (Definition: ${definition}).
-        User's sentence: "${sentence}"
-        
-        Is the word used correctly and naturally?
-        Return JSON: { "correct": boolean, "feedback": "string" }
-        Keep feedback very short and encouraging.
+        Word: "${word}" (Definition: ${definition}).
+        User sentence: "${sentence}"
+        JSON: { "correct": boolean, "feedback": "string" }
     `;
 
     try {
         const response = await ai.models.generateContent({
             model: modelId,
-            contents: prompt,
+            contents: [{ parts: [{ text: prompt }] }],
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -251,7 +236,7 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
         });
         return JSON.parse(response.text || "{}");
     } catch (e) {
-        return { correct: true, feedback: "Nice usage! It fits perfectly." };
+        return { correct: true, feedback: "Nice usage!" };
     }
 };
 
@@ -275,20 +260,15 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (!base64Audio) return;
-    await playRawAudio(base64Audio);
+    if (base64Audio) await playRawAudio(base64Audio);
   } catch (error) {
     console.error("TTS Error:", error);
   }
 }
 
 async function playRawAudio(base64String: string) {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-  }
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
+  if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  if (audioContext.state === 'suspended') await audioContext.resume();
   const audioBuffer = await decodeAudioData(decode(base64String), audioContext, 24000, 1);
   const source = audioContext.createBufferSource();
   source.buffer = audioBuffer;
@@ -299,9 +279,7 @@ async function playRawAudio(base64String: string) {
 function decode(base64: string) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
+  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
   return bytes;
 }
 
@@ -311,9 +289,7 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
   return buffer;
 }
