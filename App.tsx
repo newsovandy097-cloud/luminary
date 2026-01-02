@@ -576,7 +576,7 @@ const App = () => {
                    {isKeyMissing ? 'The engine cannot find your API Key.' : 'An error occurred while building your lesson.'}
                 </p>
                 <ul className="text-xs space-y-2 text-gray-500 list-disc ml-4 mb-4">
-                  <li>Go to Vercel > Settings > Env Variables.</li>
+                  <li>Go to Vercel &gt; Settings &gt; Env Variables.</li>
                   <li>Ensure name is exactly <code className="bg-gray-100 p-0.5 rounded">API_KEY</code>.</li>
                   <li><strong>CRITICAL:</strong> Go to Deployments tab and click <strong>Redeploy</strong>.</li>
                 </ul>
