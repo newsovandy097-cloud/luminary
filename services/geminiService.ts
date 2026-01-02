@@ -2,32 +2,11 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 /**
- * Robust API Key Detection
- * Checks standard process.env and fallback window globals.
+ * AI client initializer using process.env.API_KEY directly as per guidelines.
+ * Assume this variable is pre-configured, valid, and accessible.
  */
-const getApiKey = () => {
-  // Check standard process.env.API_KEY (Primary requirement)
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-  } catch (e) {}
-
-  // Check common Vercel/Vite prefixes as fallbacks
-  try {
-    const env = (process.env as any) || {};
-    return env.NEXT_PUBLIC_API_KEY || env.VITE_API_KEY || (window as any).API_KEY || null;
-  } catch (e) {
-    return (window as any).API_KEY || null;
-  }
-};
-
 const getAI = () => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING");
-  }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Audio Context Singleton
@@ -71,6 +50,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       Goal: Micro-learning session JSON.
     `;
 
+    // Always use ai.models.generateContent directly with model name and prompt/config
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -139,6 +119,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       }
     });
 
+    // Access the text property directly on GenerateContentResponse
     const text = response.text;
     if (text) {
       const data = JSON.parse(text) as DailyLesson;
@@ -155,12 +136,10 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   } catch (error: any) {
     console.error("LUMINARY_GEN_ERROR:", error);
     
-    // Check if Quota is used up (Question 2 answer)
     if (error.message?.includes('429') || error.status === 429) {
       throw new Error("QUOTA_EXCEEDED");
     }
     
-    if (error.message === 'API_KEY_MISSING') throw error;
     throw new Error(error.message || "GENERATION_FAILED");
   }
 };
@@ -244,9 +223,10 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
     if (!sanitizedText || sanitizedText.length < 2) return;
 
+    // Use correct contents structure for TTS as per guidelines
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: sanitizedText,
+      contents: [{ parts: [{ text: sanitizedText }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -257,7 +237,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
       },
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) await playRawAudio(base64Audio);
   } catch (error) {}
 }

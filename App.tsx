@@ -14,8 +14,6 @@ const App = () => {
   const [levelXp, setLevelXp] = useState(0);
   const [history, setHistory] = useState<DailyLesson[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [apiKeyDetected, setApiKeyDetected] = useState<boolean>(false);
-  const [showDebug, setShowDebug] = useState(false);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -41,18 +39,7 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const checkKey = () => {
-      try {
-        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
-        if ((window as any).API_KEY) return true;
-        const env = (process.env as any) || {};
-        if (env.NEXT_PUBLIC_API_KEY || env.VITE_API_KEY) return true;
-      } catch (e) {}
-      return false;
-    };
-    
-    setApiKeyDetected(checkKey());
-
+    // API Key handling is external as per requirements.
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
@@ -410,17 +397,6 @@ const App = () => {
              </div>
           </div>
 
-          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border border-gray-100 dark:border-zinc-800 transition-colors">
-            {apiKeyDetected ? (
-              <ShieldCheck className="text-emerald-500" size={14} />
-            ) : (
-              <ShieldAlert className="text-amber-500 animate-pulse" size={14} />
-            )}
-            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-zinc-500">
-              ENGINE STATUS: {apiKeyDetected ? 'CONNECTED' : 'DISCONNECTED (KEY MISSING)'}
-            </span>
-          </div>
-
           <div className="space-y-4">
             <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <Award size={14} /> <span>Skill Intensity</span>
@@ -548,7 +524,6 @@ const App = () => {
 
   if (appState === AppState.ERROR) {
     const isQuota = lastError?.includes('QUOTA_EXCEEDED');
-    const isKeyMissing = lastError === 'API_KEY_MISSING';
 
     return (
       <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center justify-center p-6 text-center transition-colors">
@@ -571,38 +546,18 @@ const App = () => {
               </>
             ) : (
               <>
-                <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> Action Required</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> System Error</p>
                 <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
-                   {isKeyMissing ? 'The engine cannot find your API Key.' : 'An error occurred while building your lesson.'}
+                   An error occurred while building your lesson. Please try again or check your network connection.
                 </p>
-                <ul className="text-xs space-y-2 text-gray-500 list-disc ml-4 mb-4">
-                  <li>Go to Vercel &gt; Settings &gt; Env Variables.</li>
-                  <li>Ensure name is exactly <code className="bg-gray-100 p-0.5 rounded">API_KEY</code>.</li>
-                  <li><strong>CRITICAL:</strong> Go to Deployments tab and click <strong>Redeploy</strong>.</li>
-                </ul>
-                
-                <button 
-                  onClick={() => setShowDebug(!showDebug)} 
-                  className="text-[10px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-500/30 pb-0.5"
-                >
-                  {showDebug ? 'Hide' : 'Run'} System Handshake Check
-                </button>
-
-                {showDebug && (
-                  <div className="mt-4 p-4 bg-gray-50 dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700 font-mono text-[9px] text-gray-400 overflow-x-auto">
-                    <div>WINDOW.API_KEY: { (window as any).API_KEY ? 'Present' : 'Missing' }</div>
-                    <div>PROCESS.ENV.API_KEY: { (process?.env as any)?.API_KEY ? 'Present' : 'Missing' }</div>
-                    <div>VITE_PREFIX: { (process?.env as any)?.VITE_API_KEY ? 'Present' : 'Missing' }</div>
-                    <div className="mt-2 text-red-400">RAW: {lastError}</div>
-                  </div>
-                )}
+                <p className="text-xs text-gray-500">Error details: {lastError}</p>
               </>
             )}
         </div>
 
         <div className="flex flex-col w-full max-w-xs gap-3">
             <button onClick={handleStartLesson} className="bg-ink dark:bg-indigo-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-all shadow-xl flex items-center justify-center gap-3">
-              <RefreshCcw size={20} /> {isQuota ? 'Retry in 60s' : 'Retry Handshake'}
+              <RefreshCcw size={20} /> {isQuota ? 'Retry in 60s' : 'Retry Session'}
             </button>
             <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white dark:bg-zinc-800 text-ink dark:text-paper px-8 py-5 rounded-3xl font-black uppercase tracking-widest border border-gray-100 dark:border-zinc-700 shadow-sm transition-all">
               Return Home
