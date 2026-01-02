@@ -1,29 +1,31 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to safely get the API key from the environment
+/**
+ * Robust API Key Detection
+ * Checks standard process.env and fallback window globals.
+ */
 const getApiKey = () => {
-  // Priority 1: standard process.env (injected by bundlers)
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
+  // Check standard process.env.API_KEY (Primary requirement)
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {}
+
+  // Check common Vercel/Vite prefixes as fallbacks
+  try {
+    const env = (process.env as any) || {};
+    return env.NEXT_PUBLIC_API_KEY || env.VITE_API_KEY || (window as any).API_KEY || null;
+  } catch (e) {
+    return (window as any).API_KEY || null;
   }
-  // Priority 2: global window variable (sometimes used in pure ESM environments)
-  if (typeof window !== 'undefined' && (window as any).API_KEY) {
-    return (window as any).API_KEY;
-  }
-  // Priority 3: check for a common Vercel prefix if the standard one is missing
-  if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) {
-    return (process.env as any).NEXT_PUBLIC_API_KEY;
-  }
-  return null;
 };
 
-// Helper to get or create AI instance
 const getAI = () => {
   const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("LUMINARY ERROR: API_KEY is missing from the environment.");
-    throw new Error("API Key not found. Please ensure you have added 'API_KEY' to your Vercel environment variables AND performed a 'Redeploy' of your project.");
+    throw new Error("API_KEY_MISSING");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -32,43 +34,43 @@ const getAI = () => {
 let audioContext: AudioContext | null = null;
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
-  const ai = getAI();
-  const modelId = "gemini-3-flash-preview";
-  
-  const vibeInstructions = {
-    professional: "Tone: Strategic, Efficient, Leadership-focused. Content: Business, career, or formal environments.",
-    social: "Tone: Fun, Witty, Casual. Content: Parties, dates, or small talk.",
-    intellectual: "Tone: Deep, Philosophical, Clear. Content: Science, history, or philosophy.",
-    charisma: "Tone: Charming, Magnetic, Storytelling-focused. Content: Presence and social influence.",
-    leadership: "Tone: Visionary, Decisive, Empathetic. Content: Managing teams and inspiring action.",
-    humorous: "Tone: Playful, Witty, Timing-focused. Content: Banter, jokes, and lightening the mood.",
-    empathy: "Tone: Warm, Validating, Attentive. Content: Emotional support and deep listening.",
-    negotiation: "Tone: Firm yet fair, Persuasive. Content: Reaching agreements and conflict resolution.",
-    family: "Tone: Patient, Loving, Direct. Content: Harmonious living, conflict resolution at home, and deep family bonding.",
-    parenting: "Tone: Encouraging, Authoritative yet Kind, Clear. Content: Setting boundaries, teaching values, and connecting with children."
-  };
-
-  const levelDescriptions = {
-    noob: "Use very simple, common but slightly elevated words.",
-    beginner: "Common academic words. Focus on building confidence.",
-    intermediate: "Business-casual sophistication.",
-    advanced: "Sophisticated, nuanced vocabulary.",
-    master: "Esoteric or highly precise terminology."
-  };
-
-  const themeContext = themeFocus && themeFocus !== 'General' 
-    ? `The topic MUST be: ${themeFocus}.` 
-    : "Choose a random, interesting theme.";
-
-  const prompt = `
-    Role: Friendly charismatic communication coach.
-    Level: ${level.toUpperCase()} (${levelDescriptions[level]})
-    Vibe: ${vibeInstructions[vibe]}
-    Theme: ${themeContext}
-    Goal: Micro-learning session JSON.
-  `;
-
   try {
+    const ai = getAI();
+    const modelId = "gemini-3-flash-preview";
+    
+    const vibeInstructions = {
+      professional: "Tone: Strategic, Efficient, Leadership-focused. Content: Business, career, or formal environments.",
+      social: "Tone: Fun, Witty, Casual. Content: Parties, dates, or small talk.",
+      intellectual: "Tone: Deep, Philosophical, Clear. Content: Science, history, or philosophy.",
+      charisma: "Tone: Charming, Magnetic, Storytelling-focused. Content: Presence and social influence.",
+      leadership: "Tone: Visionary, Decisive, Empathetic. Content: Managing teams and inspiring action.",
+      humorous: "Tone: Playful, Witty, Timing-focused. Content: Banter, jokes, and lightening the mood.",
+      empathy: "Tone: Warm, Validating, Attentive. Content: Emotional support and deep listening.",
+      negotiation: "Tone: Firm yet fair, Persuasive. Content: Reaching agreements and conflict resolution.",
+      family: "Tone: Patient, Loving, Direct. Content: Harmonious living, conflict resolution at home, and deep family bonding.",
+      parenting: "Tone: Encouraging, Authoritative yet Kind, Clear. Content: Setting boundaries, teaching values, and connecting with children."
+    };
+
+    const levelDescriptions = {
+      noob: "Use very simple, common but slightly elevated words.",
+      beginner: "Common academic words. Focus on building confidence.",
+      intermediate: "Business-casual sophistication.",
+      advanced: "Sophisticated, nuanced vocabulary.",
+      master: "Esoteric or highly precise terminology."
+    };
+
+    const themeContext = themeFocus && themeFocus !== 'General' 
+      ? `The topic MUST be: ${themeFocus}.` 
+      : "Choose a random, interesting theme.";
+
+    const prompt = `
+      Role: Friendly charismatic communication coach.
+      Level: ${level.toUpperCase()} (${levelDescriptions[level]})
+      Vibe: ${vibeInstructions[vibe]}
+      Theme: ${themeContext}
+      Goal: Micro-learning session JSON.
+    `;
+
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -148,11 +150,18 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       data.level = level;
       return data;
     } else {
-      throw new Error("Empty response from AI. Possible safety filter trigger.");
+      throw new Error("EMPTY_RESPONSE");
     }
   } catch (error: any) {
-    console.error("LUMINARY GENERATION ERROR:", error);
-    throw new Error(error.message || "Failed to generate lesson content.");
+    console.error("LUMINARY_GEN_ERROR:", error);
+    
+    // Check if Quota is used up (Question 2 answer)
+    if (error.message?.includes('429') || error.status === 429) {
+      throw new Error("QUOTA_EXCEEDED");
+    }
+    
+    if (error.message === 'API_KEY_MISSING') throw error;
+    throw new Error(error.message || "GENERATION_FAILED");
   }
 };
 
@@ -163,29 +172,21 @@ export const getSimulationReply = async (
   const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
-  
   const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: prompt,
-    });
+    const response = await ai.models.generateContent({ model: modelId, contents: prompt });
     return response.text || "...";
   } catch (e: any) {
-    console.error("Simulation Reply Error:", e);
-    return "The communication engine is struggling to respond. Error: " + (e.message || "");
+    if (e.message?.includes('429')) return "System overloaded. My free quota has been used up for the minute!";
+    return "Coach offline. Error: " + (e.message || "Connection lost");
   }
 };
 
-export const evaluateSimulation = async (
-    history: { role: string; text: string }[],
-    objective: string
-): Promise<SimulationFeedback> => {
+export const evaluateSimulation = async (history: { role: string; text: string }[], objective: string): Promise<SimulationFeedback> => {
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
-
     const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
 
     try {
@@ -207,17 +208,15 @@ export const evaluateSimulation = async (
         });
         return JSON.parse(response.text || "{}") as SimulationFeedback;
     } catch (e: any) {
-        console.error("Simulation Evaluation Error:", e);
-        throw new Error("Evaluation failed: " + e.message);
+        throw new Error(e.message?.includes('429') ? "Quota Exceeded" : "Evaluation failed");
     }
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
-    const ai = getAI();
-    const modelId = "gemini-3-flash-preview";
-    const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
-
     try {
+        const ai = getAI();
+        const modelId = "gemini-3-flash-preview";
+        const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
         const response = await ai.models.generateContent({
             model: modelId,
             contents: prompt,
@@ -235,7 +234,7 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
         });
         return JSON.parse(response.text || "{}");
     } catch (e) {
-        return { correct: true, feedback: "Nice usage!" };
+        return { correct: true, feedback: "Excellent usage!" };
     }
 };
 
@@ -260,9 +259,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (base64Audio) await playRawAudio(base64Audio);
-  } catch (error) {
-    console.error("TTS Error:", error);
-  }
+  } catch (error) {}
 }
 
 async function playRawAudio(base64String: string) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert, ArrowUpCircle, Settings } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -15,6 +15,7 @@ const App = () => {
   const [history, setHistory] = useState<DailyLesson[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   const [apiKeyDetected, setApiKeyDetected] = useState<boolean>(false);
+  const [showDebug, setShowDebug] = useState(false);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -40,11 +41,13 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Advanced check for API Key presence across common hosting injection points
     const checkKey = () => {
-      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
-      if ((window as any).API_KEY) return true;
-      if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) return true;
+      try {
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
+        if ((window as any).API_KEY) return true;
+        const env = (process.env as any) || {};
+        if (env.NEXT_PUBLIC_API_KEY || env.VITE_API_KEY) return true;
+      } catch (e) {}
       return false;
     };
     
@@ -544,29 +547,62 @@ const App = () => {
   }
 
   if (appState === AppState.ERROR) {
+    const isQuota = lastError?.includes('QUOTA_EXCEEDED');
+    const isKeyMissing = lastError === 'API_KEY_MISSING';
+
     return (
       <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center justify-center p-6 text-center transition-colors">
-        <div className="w-24 h-24 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-[2rem] flex items-center justify-center mb-10 shadow-lg">
-            <AlertCircle size={48} />
+        <div className={`w-24 h-24 ${isQuota ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : 'bg-red-100 dark:bg-red-900/30 text-red-600'} rounded-[2rem] flex items-center justify-center mb-10 shadow-lg`}>
+            {isQuota ? <Settings className="animate-spin-slow" size={48} /> : <AlertCircle size={48} />}
         </div>
-        <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Connection Failed</h2>
         
-        <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-red-100 dark:border-red-900/30 mb-8 max-w-sm w-full shadow-inner text-left">
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> Critical Action Required</p>
-            <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
-               Even if you have entered the API Key in Vercel, you must go to the <span className="underline">Deployments</span> tab and click <span className="underline font-black">Redeploy</span> for the changes to take effect.
-            </p>
-            <div className="p-4 bg-gray-50 dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
-               <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Raw Error Log</p>
-               <p className="text-[10px] font-mono text-red-400 truncate italic">
-                  "{lastError || 'System environment variable API_KEY not found.'}"
-               </p>
-            </div>
+        <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">
+          {isQuota ? 'Quota Reached' : 'Connection Failed'}
+        </h2>
+        
+        <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-gray-100 dark:border-zinc-800 mb-8 max-w-sm w-full shadow-inner text-left">
+            {isQuota ? (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-3 flex items-center gap-2">Free Tier Limit Reached</p>
+                <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
+                   You've used up your free Gemini requests for the minute. Please wait 60 seconds and try again.
+                </p>
+                <p className="text-xs text-gray-500">Free keys are limited to 15 requests per minute.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><ArrowUpCircle size={14} /> Action Required</p>
+                <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 mb-4 leading-relaxed">
+                   {isKeyMissing ? 'The engine cannot find your API Key.' : 'An error occurred while building your lesson.'}
+                </p>
+                <ul className="text-xs space-y-2 text-gray-500 list-disc ml-4 mb-4">
+                  <li>Go to Vercel > Settings > Env Variables.</li>
+                  <li>Ensure name is exactly <code className="bg-gray-100 p-0.5 rounded">API_KEY</code>.</li>
+                  <li><strong>CRITICAL:</strong> Go to Deployments tab and click <strong>Redeploy</strong>.</li>
+                </ul>
+                
+                <button 
+                  onClick={() => setShowDebug(!showDebug)} 
+                  className="text-[10px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-500/30 pb-0.5"
+                >
+                  {showDebug ? 'Hide' : 'Run'} System Handshake Check
+                </button>
+
+                {showDebug && (
+                  <div className="mt-4 p-4 bg-gray-50 dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700 font-mono text-[9px] text-gray-400 overflow-x-auto">
+                    <div>WINDOW.API_KEY: { (window as any).API_KEY ? 'Present' : 'Missing' }</div>
+                    <div>PROCESS.ENV.API_KEY: { (process?.env as any)?.API_KEY ? 'Present' : 'Missing' }</div>
+                    <div>VITE_PREFIX: { (process?.env as any)?.VITE_API_KEY ? 'Present' : 'Missing' }</div>
+                    <div className="mt-2 text-red-400">RAW: {lastError}</div>
+                  </div>
+                )}
+              </>
+            )}
         </div>
 
         <div className="flex flex-col w-full max-w-xs gap-3">
-            <button onClick={handleStartLesson} className="bg-ink dark:bg-red-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-500 transition-all shadow-xl flex items-center justify-center gap-3">
-              <RefreshCcw size={20} /> Retry Handshake
+            <button onClick={handleStartLesson} className="bg-ink dark:bg-indigo-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-all shadow-xl flex items-center justify-center gap-3">
+              <RefreshCcw size={20} /> {isQuota ? 'Retry in 60s' : 'Retry Handshake'}
             </button>
             <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white dark:bg-zinc-800 text-ink dark:text-paper px-8 py-5 rounded-3xl font-black uppercase tracking-widest border border-gray-100 dark:border-zinc-700 shadow-sm transition-all">
               Return Home
