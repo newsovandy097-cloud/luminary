@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -13,6 +13,8 @@ const App = () => {
   const [streak, setStreak] = useState(0); 
   const [levelXp, setLevelXp] = useState(0);
   const [history, setHistory] = useState<DailyLesson[]>([]);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [apiKeyDetected, setApiKeyDetected] = useState<boolean>(false);
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -38,6 +40,9 @@ const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Check for API Key presence
+    setApiKeyDetected(!!process.env.API_KEY);
+
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
@@ -123,6 +128,7 @@ const App = () => {
 
   const handleStartLesson = async () => {
     setAppState(AppState.LOADING);
+    setLastError(null);
     try {
       const data = await generateDailyLesson(selectedVibe, selectedLevel, selectedTheme);
       setLesson(data);
@@ -130,8 +136,9 @@ const App = () => {
       setCurrentSimLog([]);
       setCurrentFeedback(null);
       setAppState(AppState.LESSON);
-    } catch (e) { 
+    } catch (e: any) { 
       console.error("Lesson Start Failure:", e);
+      setLastError(e.message || "An unknown error occurred while contacting Gemini.");
       setAppState(AppState.ERROR); 
     }
   };
@@ -393,6 +400,17 @@ const App = () => {
              </div>
           </div>
 
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-zinc-900/50 rounded-xl border border-gray-100 dark:border-zinc-800 transition-colors">
+            {apiKeyDetected ? (
+              <ShieldCheck className="text-emerald-500" size={14} />
+            ) : (
+              <ShieldAlert className="text-amber-500" size={14} />
+            )}
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-zinc-500">
+              API KEY: {apiKeyDetected ? 'DETECTED' : 'MISSING FROM VERCEL'}
+            </span>
+          </div>
+
           <div className="space-y-4">
             <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <Award size={14} /> <span>Skill Intensity</span>
@@ -525,7 +543,14 @@ const App = () => {
             <AlertCircle size={48} />
         </div>
         <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Connection Failed</h2>
-        <p className="text-gray-600 dark:text-zinc-400 text-lg mb-10 max-w-xs font-medium leading-relaxed">We couldn't reach the communication engine. Check your API Key configuration or connection.</p>
+        
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-red-100 dark:border-red-900/30 mb-8 max-w-sm w-full shadow-inner">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2">Diagnostic Report</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-zinc-300 leading-relaxed overflow-hidden text-ellipsis italic">
+               "{lastError || 'We couldn\'t reach the communication engine.'}"
+            </p>
+        </div>
+
         <div className="flex flex-col w-full max-w-xs gap-3">
             <button onClick={handleStartLesson} className="bg-ink dark:bg-red-600 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-500 transition-all shadow-xl flex items-center justify-center gap-3">
               <RefreshCcw size={20} /> Try Again

@@ -5,8 +5,8 @@ import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 const getAI = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.error("FATAL: process.env.API_KEY is undefined. Ensure the API_KEY environment variable is set in Vercel.");
-    throw new Error("API Key is missing.");
+    console.error("LUMINARY ERROR: API_KEY is missing from process.env.");
+    throw new Error("API Key is missing. Ensure the 'API_KEY' environment variable is correctly set in your Vercel project settings.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -32,32 +32,29 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   };
 
   const levelDescriptions = {
-    noob: "Use very simple, common but slightly elevated words. Focus on basic social survival.",
+    noob: "Use very simple, common but slightly elevated words.",
     beginner: "Common academic words. Focus on building confidence.",
-    intermediate: "Business-casual sophistication. Focus on nuances in conversation.",
-    advanced: "Sophisticated, nuanced vocabulary. Focus on high-stakes influence.",
-    master: "Esoteric or highly precise terminology. Focus on legendary charisma."
+    intermediate: "Business-casual sophistication.",
+    advanced: "Sophisticated, nuanced vocabulary.",
+    master: "Esoteric or highly precise terminology."
   };
 
   const themeContext = themeFocus && themeFocus !== 'General' 
-    ? `The primary topic/theme of the lesson MUST be: ${themeFocus}. All vocab, concepts, and stories must revolve around this.` 
-    : "Choose a random, interesting theme that fits the selected vibe.";
+    ? `The topic MUST be: ${themeFocus}.` 
+    : "Choose a random, interesting theme.";
 
   const prompt = `
-    You are a friendly, charismatic communication coach. Your goal is to help a user become more interesting and well-spoken.
-    Target Skill Level: ${level.toUpperCase()}
-    Level Guidance: ${levelDescriptions[level]}
-    Current Vibe Setting: ${vibeInstructions[vibe]}
-    Theme/Topic Requirement: ${themeContext}
-    
-    Create a micro-learning session for this level.
-    Structure the response as JSON matching the schema exactly.
+    Role: Friendly charismatic communication coach.
+    Level: ${level.toUpperCase()} (${levelDescriptions[level]})
+    Vibe: ${vibeInstructions[vibe]}
+    Theme: ${themeContext}
+    Goal: Micro-learning session JSON.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -134,11 +131,13 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       data.level = level;
       return data;
     } else {
-      throw new Error("Empty response from AI");
+      throw new Error("The AI returned an empty response. This usually happens during high traffic or if the safety filters were triggered.");
     }
-  } catch (error) {
-    console.error("Gemini Generation Error:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("LUMINARY GENERATION ERROR:", error);
+    // Extract more detail from GoogleGenAI errors if possible
+    const message = error.message || "Unknown API Error";
+    throw new Error(message);
   }
 };
 
@@ -150,23 +149,17 @@ export const getSimulationReply = async (
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
-  const prompt = `
-    Roleplay Simulation. Setting: ${scenario.setting}
-    Your Role: ${scenario.role}
-    Conversation:
-    ${conversation}
-    Respond as ${scenario.role}. Short (under 2 sentences). Natural.
-  `;
+  const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
     });
     return response.text || "...";
-  } catch (e) {
+  } catch (e: any) {
     console.error("Simulation Reply Error:", e);
-    return "I'm sorry, I missed that. Can you repeat?";
+    return "I'm having trouble connecting to the coach. " + (e.message || "");
   }
 };
 
@@ -178,17 +171,12 @@ export const evaluateSimulation = async (
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
-    const prompt = `
-        Coach Evaluation for: ${objective}
-        Conversation History:
-        ${conversation}
-        Return JSON with score (1-10), feedback (1 strong sentence), and suggestion.
-    `;
+    const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
 
     try {
         const response = await ai.models.generateContent({
             model: modelId,
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -203,25 +191,21 @@ export const evaluateSimulation = async (
             }
         });
         return JSON.parse(response.text || "{}") as SimulationFeedback;
-    } catch (e) {
+    } catch (e: any) {
         console.error("Simulation Evaluation Error:", e);
-        return { score: 7, feedback: "Good effort!", suggestion: "Keep practicing!" };
+        throw new Error("Evaluation failed: " + e.message);
     }
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
-    const prompt = `
-        Word: "${word}" (Definition: ${definition}).
-        User sentence: "${sentence}"
-        JSON: { "correct": boolean, "feedback": "string" }
-    `;
+    const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
 
     try {
         const response = await ai.models.generateContent({
             model: modelId,
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -248,7 +232,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: sanitizedText }] }],
+      contents: sanitizedText,
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
