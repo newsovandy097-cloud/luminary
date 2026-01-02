@@ -1,5 +1,7 @@
 {
   "name": "Luminary",
   "description": "A daily 15-minute micro-learning app to improve conversation skills, vocabulary, and general knowledge.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

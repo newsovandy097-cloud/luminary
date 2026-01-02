@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle } from 'lucide-react';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff } from 'lucide-react';
 import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence } from '../services/geminiService';
 
 export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
@@ -224,7 +224,44 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   const [isTyping, setIsTyping] = useState(false);
   const [feedback, setFeedback] = useState<SimulationFeedback | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  
+  // Voice Input State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Initialize Speech Recognition if available
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => (prev ? prev + " " + transcript : transcript));
+      };
+      
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+        alert("Speech recognition is not supported in this browser. Please use Chrome or Safari.");
+        return;
+    }
+    if (isListening) {
+        recognitionRef.current.stop();
+    } else {
+        recognitionRef.current.start();
+    }
+  };
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => scrollToBottom(), [messages, feedback]);
@@ -332,21 +369,29 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
                     {isEvaluating ? "Processing Dialogue..." : "Analyze Conversation"}
                 </button>
              )}
-             <div className="relative">
-                <input 
-                    type="text" 
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder={`Respond naturally...`}
-                    className="w-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-[1.5rem] py-5 px-6 pr-16 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all dark:text-paper"
-                />
+             <div className="relative flex gap-2">
+                <div className="relative flex-1">
+                    <input 
+                        type="text" 
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        placeholder={isListening ? "Listening..." : "Respond naturally..."}
+                        className={`w-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-[1.5rem] py-5 px-6 pr-16 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all dark:text-paper ${isListening ? 'ring-2 ring-red-400 animate-pulse' : ''}`}
+                    />
+                    <button 
+                        onClick={handleSend}
+                        disabled={!input.trim() || isTyping}
+                        className="absolute right-3 top-3 p-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-400 shadow-md active:scale-90 transition-all"
+                    >
+                        <Send size={18} />
+                    </button>
+                </div>
                 <button 
-                    onClick={handleSend}
-                    disabled={!input.trim() || isTyping}
-                    className="absolute right-3 top-3 p-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-400 shadow-md active:scale-90 transition-all"
+                    onClick={toggleListening}
+                    className={`p-4 rounded-[1.5rem] shadow-lg transition-all active:scale-95 border-2 ${isListening ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-500' : 'bg-white dark:bg-zinc-800 border-gray-100 dark:border-zinc-700 text-gray-400 hover:text-blue-500'}`}
                 >
-                    <Send size={18} />
+                    {isListening ? <MicOff size={20} className="animate-pulse" /> : <Mic size={20} />}
                 </button>
              </div>
         </div>

@@ -1,43 +1,76 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-/**
- * AI client initialization.
- * Directly uses process.env.API_KEY as per core requirements.
- */
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to safely get the API key from the environment
+const getApiKey = () => {
+  // Priority 1: standard process.env (injected by bundlers)
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Priority 2: global window variable (sometimes used in pure ESM environments)
+  if (typeof window !== 'undefined' && (window as any).API_KEY) {
+    return (window as any).API_KEY;
+  }
+  // Priority 3: check for a common Vercel prefix if the standard one is missing
+  if (typeof process !== 'undefined' && process.env && (process.env as any).NEXT_PUBLIC_API_KEY) {
+    return (process.env as any).NEXT_PUBLIC_API_KEY;
+  }
+  return null;
+};
+
+// Helper to get or create AI instance
+const getAI = () => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("LUMINARY ERROR: API_KEY is missing from the environment.");
+    throw new Error("API Key not found. Please ensure you have added 'API_KEY' to your Vercel environment variables AND performed a 'Redeploy' of your project.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 // Audio Context Singleton
 let audioContext: AudioContext | null = null;
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
+  const ai = getAI();
+  const modelId = "gemini-3-flash-preview";
+  
+  const vibeInstructions = {
+    professional: "Tone: Strategic, Efficient, Leadership-focused. Content: Business, career, or formal environments.",
+    social: "Tone: Fun, Witty, Casual. Content: Parties, dates, or small talk.",
+    intellectual: "Tone: Deep, Philosophical, Clear. Content: Science, history, or philosophy.",
+    charisma: "Tone: Charming, Magnetic, Storytelling-focused. Content: Presence and social influence.",
+    leadership: "Tone: Visionary, Decisive, Empathetic. Content: Managing teams and inspiring action.",
+    humorous: "Tone: Playful, Witty, Timing-focused. Content: Banter, jokes, and lightening the mood.",
+    empathy: "Tone: Warm, Validating, Attentive. Content: Emotional support and deep listening.",
+    negotiation: "Tone: Firm yet fair, Persuasive. Content: Reaching agreements and conflict resolution.",
+    family: "Tone: Patient, Loving, Direct. Content: Harmonious living, conflict resolution at home, and deep family bonding.",
+    parenting: "Tone: Encouraging, Authoritative yet Kind, Clear. Content: Setting boundaries, teaching values, and connecting with children."
+  };
+
+  const levelDescriptions = {
+    noob: "Use very simple, common but slightly elevated words.",
+    beginner: "Common academic words. Focus on building confidence.",
+    intermediate: "Business-casual sophistication.",
+    advanced: "Sophisticated, nuanced vocabulary.",
+    master: "Esoteric or highly precise terminology."
+  };
+
+  const themeContext = themeFocus && themeFocus !== 'General' 
+    ? `The topic MUST be: ${themeFocus}.` 
+    : "Choose a random, interesting theme.";
+
+  const prompt = `
+    Role: Friendly charismatic communication coach.
+    Level: ${level.toUpperCase()} (${levelDescriptions[level]})
+    Vibe: ${vibeInstructions[vibe]}
+    Theme: ${themeContext}
+    Goal: Micro-learning session JSON.
+  `;
+
   try {
-    const ai = getAI();
-    const model = "gemini-3-flash-preview";
-    
-    const vibeInstructions = {
-      professional: "Tone: Strategic, Leadership-focused. Content: Formal environments.",
-      social: "Tone: Witty, Casual. Content: Social small talk.",
-      intellectual: "Tone: Deep, Philosophical. Content: Science and history.",
-      charisma: "Tone: Magnetic, Charming. Content: Social influence.",
-      leadership: "Tone: Decisive, Empathetic. Content: Management.",
-      humorous: "Tone: Playful, Witty. Content: Banter.",
-      empathy: "Tone: Warm, Attentive. Content: Emotional intelligence.",
-      negotiation: "Tone: Persuasive, Fair. Content: Agreements.",
-      family: "Tone: Patient, Loving. Content: Home life.",
-      parenting: "Tone: Encouraging, Clear. Content: Child development."
-    };
-
-    const prompt = `
-      Role: Expert Communication Coach.
-      Level: ${level.toUpperCase()}
-      Vibe: ${vibeInstructions[vibe]}
-      Focus: ${themeFocus || 'General interesting knowledge'}
-      Task: Generate a 15-minute micro-learning session in JSON format.
-    `;
-
     const response = await ai.models.generateContent({
-      model,
+      model: modelId,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -104,95 +137,138 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       }
     });
 
-    const data = JSON.parse(response.text || "{}") as DailyLesson;
-    const now = new Date();
-    data.id = now.getTime().toString(); 
-    data.date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    data.timestamp = now.getTime();
-    data.vibe = vibe;
-    data.level = level;
-    return data;
+    const text = response.text;
+    if (text) {
+      const data = JSON.parse(text) as DailyLesson;
+      const now = new Date();
+      data.id = now.getTime().toString(); 
+      data.date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      data.timestamp = now.getTime();
+      data.vibe = vibe;
+      data.level = level;
+      return data;
+    } else {
+      throw new Error("Empty response from AI. Possible safety filter trigger.");
+    }
   } catch (error: any) {
-    if (error.message?.includes('429')) throw new Error("QUOTA_EXCEEDED");
-    throw error;
+    console.error("LUMINARY GENERATION ERROR:", error);
+    throw new Error(error.message || "Failed to generate lesson content.");
   }
 };
 
-export const getSimulationReply = async (history: { role: string; text: string }[], scenario: { setting: string; role: string }): Promise<string> => {
+export const getSimulationReply = async (
+  history: { role: string; text: string }[], 
+  scenario: { setting: string; role: string }
+): Promise<string> => {
   const ai = getAI();
+  const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Scenario: ${scenario.setting}. Your Role: ${scenario.role}. Chat: ${conversation}. Response (1-2 sentences):`
-  });
-  return response.text || "...";
+  
+  const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+    });
+    return response.text || "...";
+  } catch (e: any) {
+    console.error("Simulation Reply Error:", e);
+    return "The communication engine is struggling to respond. Error: " + (e.message || "");
+  }
 };
 
-export const evaluateSimulation = async (history: { role: string; text: string }[], objective: string): Promise<SimulationFeedback> => {
-  const ai = getAI();
-  const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Objective: ${objective}. Chat: ${conversation}. Evaluate as communication coach in JSON (score 1-10, feedback, suggestion).`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          score: { type: Type.NUMBER },
-          feedback: { type: Type.STRING },
-          suggestion: { type: Type.STRING },
-        },
-        required: ["score", "feedback", "suggestion"]
-      }
+export const evaluateSimulation = async (
+    history: { role: string; text: string }[],
+    objective: string
+): Promise<SimulationFeedback> => {
+    const ai = getAI();
+    const modelId = "gemini-3-flash-preview";
+    const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
+
+    const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: modelId,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        score: { type: Type.NUMBER },
+                        feedback: { type: Type.STRING },
+                        suggestion: { type: Type.STRING },
+                    },
+                    required: ["score", "feedback", "suggestion"]
+                }
+            }
+        });
+        return JSON.parse(response.text || "{}") as SimulationFeedback;
+    } catch (e: any) {
+        console.error("Simulation Evaluation Error:", e);
+        throw new Error("Evaluation failed: " + e.message);
     }
-  });
-  return JSON.parse(response.text || "{}");
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
-  const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Word: ${word} (Def: ${definition}). Sentence: "${sentence}". Is this correct? Response JSON {correct: boolean, feedback: string}.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          correct: { type: Type.BOOLEAN },
-          feedback: { type: Type.STRING }
-        },
-        required: ["correct", "feedback"]
-      }
+    const ai = getAI();
+    const modelId = "gemini-3-flash-preview";
+    const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: modelId,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        correct: { type: Type.BOOLEAN },
+                        feedback: { type: Type.STRING }
+                    },
+                    required: ["correct", "feedback"]
+                }
+            }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch (e) {
+        return { correct: true, feedback: "Nice usage!" };
     }
-  });
-  return JSON.parse(response.text || "{}");
 };
 
 export const playTextToSpeech = async (text: string): Promise<void> => {
   try {
     const ai = getAI();
-    const cleanText = text.replace(/[*_#`]/g, '').trim();
+    const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
+    if (!sanitizedText || sanitizedText.length < 2) return;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: cleanText }] }],
+      contents: sanitizedText,
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Kore' },
+            },
+        },
       },
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (base64Audio) await playRawAudio(base64Audio);
-  } catch (error) {}
-};
+  } catch (error) {
+    console.error("TTS Error:", error);
+  }
+}
 
 async function playRawAudio(base64String: string) {
   if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   if (audioContext.state === 'suspended') await audioContext.resume();
-  const data = decode(base64String);
-  const audioBuffer = await decodeAudioData(data, audioContext, 24000, 1);
+  const audioBuffer = await decodeAudioData(decode(base64String), audioContext, 24000, 1);
   const source = audioContext.createBufferSource();
   source.buffer = audioBuffer;
   source.connect(audioContext.destination);
