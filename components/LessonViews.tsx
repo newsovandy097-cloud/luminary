@@ -255,24 +255,25 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
 
     const current = words[currentIndex];
 
-    const handleNext = () => {
+    const handleNext = (mastered: boolean) => {
+        // In a real app, 'mastered' could update local storage stats
         setIsFlipped(false);
         if (currentIndex < words.length - 1) {
-            setTimeout(() => setCurrentIndex(prev => prev + 1), 200);
+            setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
         } else {
-            setFinished(true);
+            setTimeout(() => setFinished(true), 300);
         }
     };
 
     if (finished) {
         return (
             <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
-                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-6">
-                    <CheckCircle2 size={40} />
+                <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-inner">
+                    <CheckCircle2 size={48} />
                 </div>
-                <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-4">Review Complete</h2>
-                <p className="text-gray-500 dark:text-zinc-400 mb-8 max-w-xs">You've refreshed your memory bank. Spaced repetition builds permanent fluency.</p>
-                <button onClick={onClose} className="w-full bg-ink dark:bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl">
+                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Review Complete</h2>
+                <p className="text-gray-500 dark:text-zinc-400 mb-10 max-w-xs text-lg font-medium leading-relaxed">You've successfully refreshed your memory bank.</p>
+                <button onClick={onClose} className="w-full bg-ink dark:bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all">
                     Return to Dashboard
                 </button>
             </div>
@@ -280,49 +281,84 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
     }
 
     return (
-        <div className="h-full flex flex-col animate-fade-in">
-             <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
-                    <RefreshCw size={14} />
-                    <span>Memory Vault {currentIndex + 1}/{words.length}</span>
+        <div className="h-full flex flex-col animate-fade-in relative">
+             <div className="flex items-center justify-between mb-6 shrink-0 z-10">
+                <div className="flex items-center space-x-3 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                        <RefreshCw size={14} />
+                    </div>
+                    <span>Vault Card {currentIndex + 1}/{words.length}</span>
                 </div>
-                <button onClick={onClose} className="text-gray-400 hover:text-ink dark:hover:text-white transition-colors">
-                    <XCircle size={20} />
+                <button onClick={onClose} className="text-gray-300 dark:text-zinc-600 hover:text-ink dark:hover:text-white transition-colors p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-full">
+                    <XCircle size={24} />
                 </button>
             </div>
 
-            <div className="flex-1 perspective-1000 relative">
-                <div className={`w-full h-full relative preserve-3d transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`}>
-                    {/* Front */}
-                    <div className="absolute w-full h-full backface-hidden bg-white dark:bg-zinc-800 rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-zinc-700 p-8 flex flex-col items-center justify-center text-center">
-                        <Brain size={48} className="text-gray-200 dark:text-zinc-700 mb-6" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-4">Definition</p>
-                        <p className="text-2xl font-medium text-ink dark:text-paper leading-relaxed">"{current.simpleDefinition}"</p>
-                        <p className="mt-8 text-sm text-indigo-500 font-bold opacity-50">Tap to Reveal Word</p>
-                    </div>
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-6 relative z-0">
+                <div 
+                    className="w-full max-w-sm aspect-[3/4] max-h-[500px] relative perspective-1000 group cursor-pointer"
+                    onClick={() => setIsFlipped(!isFlipped)}
+                >
+                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2.5rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
+                        
+                        {/* FRONT */}
+                        <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2.5rem] border border-gray-100 dark:border-zinc-700 p-8 flex flex-col items-center justify-center text-center">
+                             {/* Decor */}
+                             <div className="absolute top-6 right-6 text-gray-100 dark:text-zinc-700/50">
+                                <Brain size={120} />
+                             </div>
 
-                    {/* Back */}
-                    <div className="absolute w-full h-full backface-hidden rotate-y-180 bg-indigo-600 dark:bg-indigo-900 text-white rounded-[2.5rem] shadow-xl p-8 flex flex-col items-center justify-center text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-4">The Word Is</p>
-                        <h2 className="text-5xl font-serif font-black mb-2">{current.word}</h2>
-                        <p className="text-lg opacity-80 font-serif mb-6">/{current.pronunciation}/</p>
-                        <button onClick={() => playTextToSpeech(current.word)} className="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all mb-4">
-                            <Volume2 size={24} />
-                        </button>
-                        <div className="mt-6 w-full flex gap-3">
-                            <button onClick={handleNext} className="flex-1 bg-white/10 py-4 rounded-xl font-bold uppercase text-xs hover:bg-white/20 transition-all">Still Learning</button>
-                            <button onClick={handleNext} className="flex-1 bg-white text-indigo-900 py-4 rounded-xl font-bold uppercase text-xs hover:scale-105 transition-all shadow-lg">I Knew It</button>
+                             <div className="space-y-6 relative z-10">
+                                <span className="inline-block px-4 py-1.5 bg-gray-100 dark:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
+                                    Definition
+                                </span>
+                                <p className="text-2xl md:text-3xl font-serif font-bold text-ink dark:text-paper leading-tight">
+                                    "{current.simpleDefinition}"
+                                </p>
+                             </div>
+                             
+                             <div className="absolute bottom-8 w-full left-0 flex flex-col items-center animate-pulse opacity-50">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500 mb-1">Tap Card to Flip</span>
+                             </div>
+                        </div>
+
+                        {/* BACK */}
+                        <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2.5rem] p-8 flex flex-col justify-between text-center overflow-hidden border border-white/10">
+                            {/* Decor */}
+                            <div className="absolute -top-20 -left-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"></div>
+                            <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-black/10 rounded-full blur-3xl"></div>
+
+                            <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-4 opacity-70">The Power Word Is</p>
+                                <h2 className="text-4xl md:text-5xl font-serif font-black mb-3 tracking-tight">{current.word}</h2>
+                                <div className="flex items-center gap-3 mb-6 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm">
+                                    <p className="text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); playTextToSpeech(current.word); }} 
+                                        className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors"
+                                    >
+                                        <Volume2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="w-full grid grid-cols-2 gap-3 pt-6 border-t border-white/10 relative z-10">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleNext(false); }} 
+                                    className="py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
+                                >
+                                    Still Learning
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleNext(true); }} 
+                                    className="py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
+                                >
+                                    Mastered
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div className="h-20 flex items-center justify-center">
-                 {!isFlipped && (
-                     <button onClick={() => setIsFlipped(true)} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl">
-                        Reveal Answer
-                     </button>
-                 )}
             </div>
         </div>
     );
