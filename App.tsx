@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Grid } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
-import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
+import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel, CollectedCard } from './types';
 import { ProgressBar } from './components/ProgressBar';
-import { IntroView, VocabularyView, ConceptView, StoryView, ChallengeView, SimulatorView, VocabularyPracticeView } from './components/LessonViews';
+import { IntroView, VocabularyView, ConceptView, StoryView, ChallengeView, SimulatorView, VocabularyPracticeView, BreathingView } from './components/LessonViews';
+import { audioService } from './services/audioService';
+import { CardCollection } from './components/CardCollection';
 
 const App = () => {
   const [appState, setAppState] = useState<AppState>(AppState.DASHBOARD);
@@ -13,6 +15,7 @@ const App = () => {
   const [streak, setStreak] = useState(0); 
   const [levelXp, setLevelXp] = useState(0);
   const [history, setHistory] = useState<DailyLesson[]>([]);
+  const [collectedCards, setCollectedCards] = useState<CollectedCard[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   
   // Theme State
@@ -41,6 +44,7 @@ const App = () => {
   useEffect(() => {
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
+    const savedCards = localStorage.getItem('luminary_cards');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
     const savedTheme = localStorage.getItem('luminary_theme');
     
@@ -64,6 +68,11 @@ const App = () => {
             setStreak(stats.streak || 0);
             setLevelXp(stats.xp || 0);
             if (stats.selectedLevel) setSelectedLevel(stats.selectedLevel);
+        } catch (e) { console.error(e); }
+    }
+    if (savedCards) {
+        try {
+            setCollectedCards(JSON.parse(savedCards));
         } catch (e) { console.error(e); }
     }
 
@@ -107,6 +116,19 @@ const App = () => {
       const newXp = levelXp + 150;
       setStreak(newStreak); setLevelXp(newXp);
       localStorage.setItem('luminary_stats', JSON.stringify({ streak: newStreak, xp: newXp, selectedLevel }));
+      
+      // Award Card
+      const newCard: CollectedCard = {
+          id: newLesson.id,
+          timestamp: newLesson.timestamp,
+          theme: newLesson.theme,
+          vibe: newLesson.vibe,
+          title: newLesson.concept.title,
+          rarity: newLesson.level
+      };
+      const updatedCards = [newCard, ...collectedCards];
+      setCollectedCards(updatedCards);
+      localStorage.setItem('luminary_cards', JSON.stringify(updatedCards));
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,9 +296,10 @@ const App = () => {
   };
 
   const handleNextStep = () => {
-    if (stepIndex < 6) setStepIndex(prev => prev + 1);
+    if (stepIndex < 7) setStepIndex(prev => prev + 1); // UPDATED MAX STEP to 7
     else {
       if (lesson) saveProgress(lesson);
+      audioService.stopAmbience(); // Ensure audio stops
       setAppState(AppState.COMPLETED);
     }
   };
@@ -290,16 +313,20 @@ const App = () => {
   const renderContent = () => {
     if (!lesson) return null;
     switch (stepIndex) {
-      case 0: return <IntroView theme={lesson.theme} level={lesson.level} onNext={handleNextStep} />;
+      case 0: return <IntroView theme={lesson.theme} level={lesson.level} vibe={lesson.vibe} onNext={handleNextStep} />;
       case 1: return <VocabularyView data={lesson.vocabularies} onNext={handleNextStep} />;
       case 2: return <VocabularyPracticeView words={lesson.vocabularies} onNext={handleNextStep} onSkip={handleNextStep} />;
       case 3: return <ConceptView data={lesson.concept} />;
-      case 4: return <SimulatorView data={lesson.simulation} onComplete={handleSimComplete} onSkip={handleNextStep} />;
-      case 5: return <StoryView data={lesson.story} />;
-      case 6: return <ChallengeView data={lesson.challenge} onComplete={handleNextStep} />;
+      // NEW STEP 4: Breathing Exercise
+      case 4: return <BreathingView onComplete={handleNextStep} />;
+      case 5: return <SimulatorView data={lesson.simulation} vibe={lesson.vibe} level={lesson.level} onComplete={handleSimComplete} onSkip={handleNextStep} />;
+      case 6: return <StoryView data={lesson.story} />;
+      case 7: return <ChallengeView data={lesson.challenge} onComplete={handleNextStep} />;
       default: return null;
     }
   };
+
+  // --- VIEW RENDERING LOGIC ---
 
   if (showProfile) {
     return (
@@ -377,6 +404,10 @@ const App = () => {
         </div>
       </div>
     );
+  }
+  
+  if (appState === AppState.COLLECTION) {
+      return <CardCollection cards={collectedCards} onBack={() => setAppState(AppState.DASHBOARD)} />;
   }
 
   if (appState === AppState.DASHBOARD) {
@@ -462,6 +493,18 @@ const App = () => {
                   </div>
               </div>
           )}
+
+          {/* NEW: Collection Access */}
+          <button onClick={() => setAppState(AppState.COLLECTION)} className="w-full bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20 border border-indigo-100 dark:border-indigo-900/30 p-5 rounded-[2rem] flex items-center justify-between group">
+              <div className="flex items-center gap-4">
+                  <div className="bg-white dark:bg-zinc-800 p-3 rounded-xl shadow-sm text-indigo-600 dark:text-indigo-400"><Grid size={24} /></div>
+                  <div className="text-left">
+                      <h3 className="font-serif font-black text-xl text-ink dark:text-paper">Artifact Vault</h3>
+                      <p className="text-[10px] text-gray-400 dark:text-zinc-500 font-black uppercase tracking-widest">{collectedCards.length} Artifacts</p>
+                  </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-800 p-2 rounded-full text-gray-400 group-hover:text-indigo-600 transition-colors"><ChevronRight size={20} /></div>
+          </button>
 
           <div className="space-y-4">
             <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -570,10 +613,11 @@ const App = () => {
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-indigo-600 animate-gradient-x"></div>
         <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center text-white mb-10 shadow-2xl rotate-12"><Trophy size={48} /></div>
         <h2 className="text-5xl font-serif font-black mb-4">Level Up.</h2>
-        <p className="text-indigo-200 text-lg mb-12 max-w-sm font-medium">Session complete. You've earned 150 XP towards your next rank.</p>
+        <p className="text-indigo-200 text-lg mb-12 max-w-sm font-medium">Session complete. You've earned 150 XP and unlocked a new <span className="text-white font-bold">Mastery Artifact</span>.</p>
         <div className="flex flex-col w-full max-w-xs gap-4 relative z-10">
             <button onClick={handleDownloadPDF} className="bg-white/10 text-white px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-white/20 transition-all border border-white/10 flex items-center justify-center gap-3"><Download size={20} /> Get Full Report</button>
-            <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white text-ink px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-2xl">Return Home</button>
+            <button onClick={() => setAppState(AppState.COLLECTION)} className="bg-white text-ink px-8 py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-2xl flex items-center justify-center gap-2"><Sparkles size={18} /> View Artifact</button>
+            <button onClick={() => setAppState(AppState.DASHBOARD)} className="text-xs font-black uppercase tracking-widest text-white/50 hover:text-white mt-4">Return Home</button>
         </div>
       </div>
     );
@@ -583,13 +627,13 @@ const App = () => {
     <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center p-4 sm:p-6 overflow-x-hidden transition-colors">
       <div className="w-full max-w-2xl h-full flex flex-col flex-1 relative">
         <header className="flex justify-between items-center mb-8 px-2">
-          <button onClick={() => setAppState(AppState.DASHBOARD)} className="bg-white dark:bg-zinc-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-700 text-gray-400 hover:text-red-500 transition-all active:scale-90"><LogOut size={20}/></button>
+          <button onClick={() => { audioService.stopAmbience(); setAppState(AppState.DASHBOARD); }} className="bg-white dark:bg-zinc-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-700 text-gray-400 hover:text-red-500 transition-all active:scale-90"><LogOut size={20}/></button>
           <div className="text-center">
              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">{lesson?.vibe} • {lesson?.level}</p>
              <p className="font-serif font-black text-ink dark:text-paper">{lesson?.date}</p>
           </div>
           <div className="w-12 h-2 bg-indigo-50 dark:bg-zinc-800 rounded-full overflow-hidden border border-gray-100 dark:border-zinc-700">
-              <div className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-700" style={{ width: `${(stepIndex/6)*100}%` }}></div>
+              <div className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-700" style={{ width: `${(stepIndex/7)*100}%` }}></div>
           </div>
         </header>
 
@@ -597,7 +641,7 @@ const App = () => {
            {renderContent()}
         </div>
 
-        {stepIndex > 0 && stepIndex < 6 && stepIndex !== 1 && stepIndex !== 2 && stepIndex !== 4 && (
+        {stepIndex > 0 && stepIndex < 7 && stepIndex !== 1 && stepIndex !== 2 && stepIndex !== 4 && stepIndex !== 5 && (
           <div className="flex justify-end pb-8">
              <button onClick={handleNextStep} className="bg-ink dark:bg-indigo-600 text-white px-12 py-5 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all shadow-xl transform active:scale-95">Next Segment <ChevronRight size={20} /></button>
           </div>

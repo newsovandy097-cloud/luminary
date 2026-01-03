@@ -1,10 +1,53 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff } from 'lucide-react';
-import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence } from '../services/geminiService';
+import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback, Vibe, SkillLevel } from '../types';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target, VolumeX, Briefcase, Heart, Smile, Users, Scale, Home, Baby, Globe, Wand2, Wind } from 'lucide-react';
+import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence, generateSimulationHint } from '../services/geminiService';
+import { audioService } from '../services/audioService';
 
-export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
-  <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-6">
+// --- NEW COACH AVATAR COMPONENT ---
+const CoachAvatar: React.FC<{ vibe: Vibe, mood: 'neutral' | 'happy' | 'thinking' }> = ({ vibe, mood }) => {
+    let Icon = User;
+    let color = "bg-gray-100 text-gray-600";
+
+    switch(vibe) {
+        case 'professional': Icon = Briefcase; color = "bg-blue-100 text-blue-700"; break;
+        case 'social': Icon = Smile; color = "bg-pink-100 text-pink-700"; break;
+        case 'intellectual': Icon = Brain; color = "bg-emerald-100 text-emerald-700"; break;
+        case 'charisma': Icon = Sparkles; color = "bg-purple-100 text-purple-700"; break;
+        case 'leadership': Icon = Users; color = "bg-amber-100 text-amber-700"; break;
+        case 'family': Icon = Home; color = "bg-indigo-100 text-indigo-700"; break;
+        case 'parenting': Icon = Baby; color = "bg-rose-100 text-rose-700"; break;
+        default: Icon = User;
+    }
+
+    return (
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color} shadow-sm border-2 border-white dark:border-zinc-800 relative`}>
+            <Icon size={20} />
+            {mood === 'thinking' && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-bounce"></div>
+            )}
+        </div>
+    );
+};
+
+export const IntroView: React.FC<{ theme: string; level: string; vibe: Vibe; onNext: () => void }> = ({ theme, level, vibe, onNext }) => {
+  useEffect(() => {
+     // Start the ambient ritual audio
+     audioService.startAmbience(vibe);
+  }, [vibe]);
+
+  const [muted, setMuted] = useState(false);
+  const toggleMute = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setMuted(!muted);
+      audioService.toggleMute(!muted);
+  };
+
+  return (
+  <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-6 relative">
+    <button onClick={toggleMute} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-ink dark:hover:text-paper transition-colors">
+        {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+    </button>
     <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-sm font-bold tracking-wide uppercase">
       <Sparkles size={16} />
       {level.toUpperCase()} Session
@@ -28,11 +71,17 @@ export const IntroView: React.FC<{ theme: string; level: string; onNext: () => v
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }> = ({ data, onNext }) => {
   const [index, setIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedAudio, setRecordedAudio] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   const current = data[index];
 
   const handlePlay = async () => {
@@ -41,7 +90,49 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     try { await playTextToSpeech(current.word); } finally { setIsPlaying(false); }
   };
 
+  const handleRecordStart = async () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              mediaRecorderRef.current = new MediaRecorder(stream);
+              chunksRef.current = [];
+              
+              mediaRecorderRef.current.ondataavailable = (e) => chunksRef.current.push(e.data);
+              mediaRecorderRef.current.onstop = async () => {
+                  const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
+                  const audioURL = window.URL.createObjectURL(blob);
+                  setRecordedAudio(audioURL);
+                  
+                  // Auto-play sequence: AI then User
+                  setIsPlaying(true);
+                  try {
+                      await playTextToSpeech(current.word);
+                      setTimeout(() => {
+                        const userAudio = new Audio(audioURL);
+                        userAudio.onended = () => setIsPlaying(false);
+                        userAudio.play();
+                      }, 500);
+                  } catch (e) { setIsPlaying(false); }
+              };
+              
+              mediaRecorderRef.current.start();
+              setIsRecording(true);
+          } catch (e) {
+              console.error("Recording error", e);
+              alert("Microphone access denied.");
+          }
+      }
+  };
+
+  const handleRecordStop = () => {
+      if (mediaRecorderRef.current && isRecording) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+      }
+  };
+
   const nextWord = () => {
+    setRecordedAudio(null);
     if (index < data.length - 1) setIndex(index + 1);
     else onNext();
   };
@@ -63,11 +154,41 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     <div className="flex-1 overflow-y-auto hide-scrollbar">
       <div className="flex items-center justify-between mb-4">
           <h2 className="text-5xl font-serif font-black text-ink dark:text-paper tracking-tight leading-none">{current.word}</h2>
-          <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90 flex-shrink-0">
-            {isPlaying ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90 flex-shrink-0">
+                {isPlaying ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
+            </button>
+            
+            {/* VOICE MIRROR BUTTON */}
+            <button 
+                onMouseDown={handleRecordStart}
+                onMouseUp={handleRecordStop}
+                onTouchStart={handleRecordStart}
+                onTouchEnd={handleRecordStop}
+                className={`p-4 rounded-2xl transition-all border shadow-sm active:scale-90 flex-shrink-0 ${isRecording ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-gray-50 dark:bg-zinc-800 text-gray-400 dark:text-zinc-500 border-gray-100 dark:border-zinc-700 hover:text-indigo-600'}`}
+            >
+                {isRecording ? <Mic size={24} /> : <MicOff size={24} />}
+            </button>
+          </div>
       </div>
-      <p className="text-gray-400 dark:text-zinc-500 text-xl font-medium mb-8 font-serif">/{current.pronunciation}/</p>
+      
+      {/* Shadowing Instruction */}
+      {recordedAudio ? (
+          <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-xs font-bold text-center animate-fade-in border border-green-100 dark:border-green-900/30">
+              Echo Comparison Complete
+          </div>
+      ) : (
+          <div className="mb-6 p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold text-center animate-fade-in border border-indigo-100 dark:border-indigo-900/30">
+              Hold Mic to "Shadow" (Record & Compare)
+          </div>
+      )}
+
+      <div className="flex items-baseline gap-4 mb-8 flex-wrap">
+        <p className="text-gray-400 dark:text-zinc-500 text-xl font-medium font-serif">/{current.pronunciation}/</p>
+        {current.khmerDefinition && (
+          <p className="text-xl text-indigo-600 dark:text-indigo-400 font-serif">{current.khmerDefinition}</p>
+        )}
+      </div>
 
       <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-[2rem] border-2 border-indigo-100 dark:border-indigo-900/30 relative mb-8">
         <div className="absolute -top-3 left-8 bg-indigo-600 text-white px-4 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">
@@ -109,23 +230,63 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
 
 export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () => void; onSkip: () => void }> = ({ words, onNext, onSkip }) => {
     const [wordIdx, setWordIdx] = useState(0);
-    const [input, setInput] = useState("");
-    const [feedback, setFeedback] = useState<{ correct: boolean; feedback: string } | null>(null);
-    const [isChecking, setIsChecking] = useState(false);
-    
+    // Puzzle State
+    const [scrambledWords, setScrambledWords] = useState<{id: number, text: string}[]>([]);
+    const [selectedWords, setSelectedWords] = useState<{id: number, text: string}[]>([]);
+    const [correctOrder, setCorrectOrder] = useState<string[]>([]);
+    const [puzzleSolved, setPuzzleSolved] = useState(false);
+    const [isWrong, setIsWrong] = useState(false);
+
     const current = words[wordIdx];
 
-    const handleCheck = async () => {
-        if (!input.trim() || isChecking) return;
-        setIsChecking(true);
-        const result = await evaluateSentence(current.word, current.simpleDefinition, input);
-        setFeedback(result);
-        setIsChecking(false);
+    useEffect(() => {
+        // Init Puzzle
+        const sentence = current.exampleSentences && current.exampleSentences.length > 0 
+            ? current.exampleSentences[0] 
+            : (current as any).exampleSentence;
+        
+        // Remove punctuation for easier matching, keep for display? Simpler to just split by space for now.
+        const cleanSentence = sentence.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+        const parts = cleanSentence.split(/\s+/);
+        setCorrectOrder(parts);
+
+        const items = parts.map((w: string, i: number) => ({ id: i, text: w }));
+        // Shuffle
+        for (let i = items.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [items[i], items[j]] = [items[j], items[i]];
+        }
+        setScrambledWords(items);
+        setSelectedWords([]);
+        setPuzzleSolved(false);
+        setIsWrong(false);
+    }, [wordIdx, current]);
+
+    const handleWordClick = (item: {id: number, text: string}, fromScramble: boolean) => {
+        setIsWrong(false);
+        if (fromScramble) {
+            setScrambledWords(prev => prev.filter(w => w.id !== item.id));
+            setSelectedWords(prev => [...prev, item]);
+        } else {
+            setSelectedWords(prev => prev.filter(w => w.id !== item.id));
+            setScrambledWords(prev => [...prev, item]);
+        }
+    };
+
+    const handleCheck = () => {
+        const currentSentence = selectedWords.map(w => w.text).join(' ');
+        const targetSentence = correctOrder.join(' ');
+        
+        if (currentSentence === targetSentence) {
+            setPuzzleSolved(true);
+            playTextToSpeech(currentSentence);
+        } else {
+            setIsWrong(true);
+            setTimeout(() => setIsWrong(false), 500);
+        }
     };
 
     const handleNext = () => {
-        setFeedback(null);
-        setInput("");
         if (wordIdx < words.length - 1) setWordIdx(wordIdx + 1);
         else onNext();
     };
@@ -134,54 +295,230 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
         <div className="h-full flex flex-col space-y-6 animate-fade-in">
              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-fuchsia-600 dark:text-fuchsia-400 font-black uppercase tracking-[0.2em] text-[10px]">
-                    <PenTool size={14} />
-                    <span>Drill {wordIdx + 1} of {words.length}</span>
+                    <Layers size={14} />
+                    <span>Syntax Puzzle {wordIdx + 1} of {words.length}</span>
                 </div>
                 <button 
                   onClick={onSkip}
                   className="text-[10px] font-black uppercase text-gray-400 dark:text-zinc-500 hover:text-ink dark:hover:text-paper transition-colors flex items-center gap-1"
                 >
-                  Skip Practice <XCircle size={12} />
+                  Skip <XCircle size={12} />
                 </button>
             </div>
 
-            <div className="flex-1">
-                <h3 className="text-xs font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Use it in a sentence:</h3>
-                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-6">{current.word}</h2>
-
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    disabled={!!feedback}
-                    placeholder={`e.g., "The team showed great ${current.word.toLowerCase()} during the meeting."`}
-                    className="w-full h-32 p-5 bg-white dark:bg-zinc-800 border-2 border-gray-100 dark:border-zinc-700 rounded-3xl resize-none focus:outline-none focus:border-fuchsia-500 transition-all text-lg font-medium leading-relaxed shadow-inner dark:text-paper"
-                />
-
-                {feedback && (
-                    <div className={`mt-6 p-6 rounded-3xl border-2 animate-fade-in ${feedback.correct ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/30 text-green-800 dark:text-green-300' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/30 text-orange-800 dark:text-orange-300'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            {feedback.correct ? <CheckCircle2 size={18} /> : <Sparkles size={18} />}
-                            <span className="font-black text-[10px] uppercase tracking-widest">{feedback.correct ? 'Perfect Usage' : 'Coach Hint'}</span>
-                        </div>
-                        <p className="font-bold text-lg">{feedback.feedback}</p>
+            <div className="flex-1 flex flex-col justify-center">
+                <div className="text-center mb-8">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-2">Rebuild the Sentence</p>
+                    <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-2">{current.word}</h2>
+                    <div className="space-y-1">
+                        <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">"{current.simpleDefinition}"</p>
+                        {current.khmerDefinition && <p className="text-sm text-gray-500 dark:text-zinc-400 font-serif">{current.khmerDefinition}</p>}
                     </div>
-                )}
+                </div>
+
+                {/* Drop Zone */}
+                <div className={`min-h-[120px] bg-white dark:bg-zinc-800 rounded-3xl border-2 border-dashed p-4 flex flex-wrap content-start gap-2 mb-6 transition-colors duration-300 ${puzzleSolved ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : isWrong ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-zinc-700'}`}>
+                    {selectedWords.length === 0 && !puzzleSolved && (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-zinc-600 text-sm font-black uppercase tracking-widest pointer-events-none">
+                            Tap words below
+                        </div>
+                    )}
+                    {selectedWords.map((item) => (
+                        <button 
+                            key={item.id} 
+                            onClick={() => !puzzleSolved && handleWordClick(item, false)}
+                            className="bg-ink dark:bg-paper text-white dark:text-ink px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-md animate-fade-in hover:scale-105 active:scale-95 transition-all"
+                        >
+                            {item.text}
+                        </button>
+                    ))}
+                    {puzzleSolved && (
+                        <div className="w-full flex items-center justify-center mt-2 text-green-600 dark:text-green-400 font-black uppercase tracking-widest text-xs gap-2 animate-bounce">
+                            <CheckCircle2 size={16} /> Perfect Syntax
+                        </div>
+                    )}
+                </div>
+
+                {/* Scramble Pool */}
+                <div className="flex flex-wrap justify-center gap-2 mb-4">
+                    {scrambledWords.map((item) => (
+                        <button 
+                            key={item.id} 
+                            onClick={() => handleWordClick(item, true)}
+                            className="bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-sm hover:bg-gray-200 dark:hover:bg-zinc-600 active:scale-95 transition-all"
+                        >
+                            {item.text}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="pt-4">
-                {!feedback ? (
+                {!puzzleSolved ? (
                     <button 
                         onClick={handleCheck}
-                        disabled={!input.trim() || isChecking}
-                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50"
+                        disabled={selectedWords.length === 0}
+                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isChecking ? <Loader2 size={24} className="animate-spin mx-auto" /> : 'Evaluate Sentence'}
+                        Check Syntax
                     </button>
                 ) : (
-                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in">
-                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'}
+                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in flex items-center justify-center gap-2">
+                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'} <ArrowRight size={20} />
                     </button>
                 )}
+            </div>
+        </div>
+    );
+};
+
+export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => void }> = ({ words, onClose }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isFlipped, setIsFlipped] = useState(false);
+    const [finished, setFinished] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    const current = words[currentIndex];
+
+    const handleNext = (mastered: boolean) => {
+        setIsFlipped(false);
+        if (currentIndex < words.length - 1) {
+            setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
+        } else {
+            setTimeout(() => setFinished(true), 300);
+        }
+    };
+
+    const handlePlayAudio = async (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+        if (isPlaying) return;
+        setIsPlaying(true);
+        try {
+            await playTextToSpeech(current.word);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsPlaying(false);
+        }
+    };
+
+    if (finished) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
+                <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-inner">
+                    <CheckCircle2 size={48} />
+                </div>
+                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Review Complete</h2>
+                <p className="text-gray-500 dark:text-zinc-400 mb-10 max-w-xs text-lg font-medium leading-relaxed">You've successfully refreshed your memory bank.</p>
+                <button onClick={onClose} className="w-full bg-ink dark:bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all">
+                    Return to Dashboard
+                </button>
+            </div>
+        );
+    }
+
+    // Stop propagation handler
+    const stopProp = (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+    };
+
+    return (
+        <div className="h-full flex flex-col animate-fade-in relative">
+             <div className="flex items-center justify-between mb-4 shrink-0 z-10">
+                <div className="flex items-center space-x-3 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                        <RefreshCw size={14} />
+                    </div>
+                    <span>Vault Card {currentIndex + 1}/{words.length}</span>
+                </div>
+                <button onClick={onClose} className="text-gray-300 dark:text-zinc-600 hover:text-ink dark:hover:text-white transition-colors p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-full">
+                    <XCircle size={24} />
+                </button>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0 relative z-0">
+                <div 
+                    className="w-full max-w-sm h-[480px] sm:h-[520px] relative perspective-1000 group cursor-pointer transition-all duration-300"
+                    onClick={() => setIsFlipped(!isFlipped)}
+                >
+                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
+                        
+                        {/* FRONT */}
+                        <div 
+                            className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2rem] border border-gray-100 dark:border-zinc-700 p-6 sm:p-8 flex flex-col items-center text-center overflow-hidden"
+                            style={{ zIndex: isFlipped ? 0 : 20 }}
+                        >
+                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10 space-y-4">
+                                {/* Decor */}
+                                <Brain size={80} className="text-gray-100 dark:text-zinc-700/50 mb-2 shrink-0" />
+
+                                <div className="space-y-4">
+                                    <span className="inline-block px-4 py-1.5 bg-gray-100 dark:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
+                                        Definition
+                                    </span>
+                                    <p className="text-2xl sm:text-3xl font-serif font-bold text-ink dark:text-paper leading-tight">
+                                        "{current.simpleDefinition}"
+                                    </p>
+                                </div>
+                             </div>
+                             
+                             <div className="shrink-0 mt-4 animate-pulse opacity-50">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500">Tap Card to Flip</span>
+                             </div>
+                        </div>
+
+                        {/* BACK */}
+                        <div 
+                            className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2rem] p-6 sm:p-8 flex flex-col text-center overflow-hidden border border-white/10"
+                            style={{ zIndex: isFlipped ? 20 : 0 }}
+                        >
+                            {/* Background Effects */}
+                            <div className="absolute -top-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+                            
+                            <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 opacity-70">The Power Word Is</p>
+                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-1 tracking-tight break-words max-w-full leading-none">{current.word}</h2>
+                                {current.khmerDefinition && <p className="text-lg text-indigo-200 font-serif mb-3">{current.khmerDefinition}</p>}
+                                <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
+                                    <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
+                                    <button 
+                                        type="button"
+                                        onClick={handlePlayAudio}
+                                        onMouseDown={stopProp}
+                                        onMouseUp={stopProp}
+                                        onTouchStart={stopProp}
+                                        onTouchEnd={stopProp}
+                                        disabled={isPlaying}
+                                        className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isPlaying ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/10 shrink-0 z-20">
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleNext(false); }} 
+                                    onMouseDown={stopProp}
+                                    onTouchEnd={stopProp}
+                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
+                                >
+                                    Still Learning
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleNext(true); }} 
+                                    onMouseDown={stopProp}
+                                    onTouchEnd={stopProp}
+                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
+                                >
+                                    Mastered
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -228,7 +565,67 @@ export const ConceptView: React.FC<{ data: Concept }> = ({ data }) => (
   </div>
 );
 
-export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: { role: string; text: string }[], feedback: SimulationFeedback) => void; onSkip: () => void }> = ({ data, onComplete, onSkip }) => {
+// --- NEW BREATHING VIEW ---
+export const BreathingView: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+    const [text, setText] = useState("Inhale Confidence");
+    const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
+    
+    useEffect(() => {
+        let cycle = 0;
+        const interval = setInterval(() => {
+            // Cycle: In (4s) -> Hold (2s) -> Out (4s) -> Hold (2s)
+            // Simplified: In (4s) -> Out (4s)
+            
+            if (cycle >= 2) { // 3 full cycles approx
+                clearInterval(interval);
+                onComplete();
+                return;
+            }
+
+            setPhase('in');
+            setText("Inhale Confidence...");
+            
+            setTimeout(() => {
+                setPhase('out');
+                setText("Exhale Doubt...");
+            }, 4000);
+
+            cycle++;
+        }, 8000); // 8s total cycle
+
+        // Initial Start
+        setPhase('in');
+        setText("Inhale Confidence...");
+        setTimeout(() => {
+             setPhase('out');
+             setText("Exhale Doubt...");
+        }, 4000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in space-y-8">
+            <div className="text-indigo-500 dark:text-indigo-400 font-black uppercase tracking-[0.3em] text-[10px] flex items-center gap-2">
+                <Wind size={14} /> Physiological Prime
+            </div>
+            
+            <div className="relative flex items-center justify-center w-64 h-64">
+                <div className={`absolute border-4 border-indigo-200 dark:border-indigo-900 rounded-full transition-all duration-[4000ms] ease-in-out ${phase === 'in' ? 'w-64 h-64 opacity-100' : 'w-20 h-20 opacity-50'}`}></div>
+                <div className={`absolute bg-indigo-500/20 dark:bg-indigo-400/20 rounded-full blur-xl transition-all duration-[4000ms] ease-in-out ${phase === 'in' ? 'w-48 h-48' : 'w-10 h-10'}`}></div>
+                <div className="relative z-10 font-serif font-black text-2xl text-ink dark:text-paper transition-opacity duration-1000">
+                    {text}
+                </div>
+            </div>
+
+            <button onClick={onComplete} className="text-gray-400 hover:text-indigo-500 text-xs font-bold uppercase tracking-widest mt-8">
+                Skip Breathing
+            </button>
+        </div>
+    );
+};
+
+export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: SkillLevel; onComplete: (history: { role: string; text: string }[], feedback: SimulationFeedback) => void; onSkip: () => void }> = ({ data, vibe, level, onComplete, onSkip }) => {
   const [messages, setMessages] = useState<{ role: 'model' | 'user'; text: string }[]>([
     { role: 'model', text: data.openingLine }
   ]);
@@ -236,6 +633,7 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   const [isTyping, setIsTyping] = useState(false);
   const [feedback, setFeedback] = useState<SimulationFeedback | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isHinting, setIsHinting] = useState(false);
   
   // Voice Input State
   const [isListening, setIsListening] = useState(false);
@@ -298,6 +696,15 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
       } catch (e) { console.error(e); } finally { setIsEvaluating(false); }
   };
 
+  const handleMagicHint = async () => {
+      if (isHinting) return;
+      setIsHinting(true);
+      try {
+          const hint = await generateSimulationHint(messages, { setting: data.setting, role: data.role }, level);
+          setInput(hint);
+      } catch (e) { console.error(e); } finally { setIsHinting(false); }
+  }
+
   return (
     <div className="flex flex-col h-full animate-fade-in">
       <div className="flex items-center justify-between mb-4">
@@ -324,8 +731,9 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
 
       <div className="flex-1 overflow-y-auto space-y-4 p-2 mb-4 pr-2 scroll-smooth hide-scrollbar">
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${
+          <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'model' && <CoachAvatar vibe={vibe} mood={feedback ? 'happy' : 'neutral'} />}
+            <div className={`max-w-[75%] p-4 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${
                 msg.role === 'user' ? 'bg-ink dark:bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-gray-800 dark:text-paper rounded-bl-none border border-gray-100 dark:border-zinc-700'
             }`}>
               {msg.text}
@@ -333,7 +741,8 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
           </div>
         ))}
         {isTyping && (
-           <div className="flex justify-start">
+           <div className="flex justify-start gap-3">
+             <CoachAvatar vibe={vibe} mood="thinking" />
              <div className="bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 p-4 rounded-2xl rounded-bl-none flex space-x-1 shadow-sm">
                <div className="w-1.5 h-1.5 bg-gray-300 dark:bg-zinc-600 rounded-full animate-bounce"></div>
                <div className="w-1.5 h-1.5 bg-gray-300 dark:bg-zinc-600 rounded-full animate-bounce delay-100"></div>
@@ -382,6 +791,15 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
                 </button>
              )}
              <div className="relative flex gap-2">
+                {/* MAGIC WAND HINT */}
+                <button 
+                    onClick={handleMagicHint}
+                    disabled={isHinting}
+                    className="p-4 bg-indigo-50 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 rounded-[1.5rem] shadow-sm active:scale-95 transition-all border border-indigo-100 dark:border-zinc-700"
+                >
+                    {isHinting ? <Loader2 size={20} className="animate-spin" /> : <Wand2 size={20} />}
+                </button>
+
                 <div className="relative flex-1">
                     <input 
                         type="text" 
@@ -454,7 +872,13 @@ export const StoryView: React.FC<{ data: Story }> = ({ data }) => {
   );
 };
 
-export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
+export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => {
+    useEffect(() => {
+        // Stop the ambient audio when the challenge is shown (focus mode)
+        audioService.stopAmbience();
+    }, []);
+
+    return (
   <div className="flex flex-col h-full justify-between animate-fade-in">
     <div className="space-y-8">
       <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-black uppercase tracking-[0.2em] text-[10px]">
@@ -485,8 +909,9 @@ export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }
       onClick={onComplete}
       className="w-full bg-ink dark:bg-purple-600 text-white py-6 rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-purple-600 dark:hover:bg-purple-500 transition-all mt-8 flex items-center justify-center gap-4 shadow-2xl transform hover:-translate-y-1 active:scale-95"
     >
-      Finish Day & Save
+      Finish & Unlock Artifact
       <CheckCircle2 size={24} />
     </button>
   </div>
-);
+    );
+};

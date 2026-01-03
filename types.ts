@@ -6,6 +6,7 @@ export interface Vocabulary {
   pronunciation: string;
   definition: string;
   simpleDefinition: string; // "In plain English"
+  khmerDefinition: string; // Khmer translation
   etymology: string;
   exampleSentences: string[]; // Changed to array for 3 examples
 }
@@ -56,10 +57,20 @@ export interface DailyLesson {
   challenge: Challenge;
 }
 
+export interface CollectedCard {
+  id: string;
+  timestamp: number;
+  theme: string;
+  vibe: Vibe;
+  title: string; // Usually the Concept Title
+  rarity: SkillLevel;
+}
+
 export enum AppState {
   DASHBOARD = 'DASHBOARD',
   LOADING = 'LOADING',
   LESSON = 'LESSON',
   COMPLETED = 'COMPLETED',
-  ERROR = 'ERROR'
+  ERROR = 'ERROR',
+  COLLECTION = 'COLLECTION'
 }

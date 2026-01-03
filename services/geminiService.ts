@@ -61,7 +61,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     Vibe: ${vibeInstructions[vibe]}
     Theme: ${themeContext}
     Goal: Micro-learning session JSON.
-    Requirement: Provide exactly 3 distinct example sentences for each vocabulary word.
+    Requirement: Provide exactly 3 distinct example sentences for each vocabulary word. Include the Khmer translation/definition for each word.
   `;
 
   try {
@@ -83,6 +83,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                   pronunciation: { type: Type.STRING },
                   definition: { type: Type.STRING },
                   simpleDefinition: { type: Type.STRING },
+                  khmerDefinition: { type: Type.STRING },
                   etymology: { type: Type.STRING },
                   exampleSentences: { 
                     type: Type.ARRAY,
@@ -90,7 +91,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                     description: "3 distinct example sentences using the word."
                   },
                 },
-                required: ["word", "pronunciation", "definition", "simpleDefinition", "etymology", "exampleSentences"]
+                required: ["word", "pronunciation", "definition", "simpleDefinition", "khmerDefinition", "etymology", "exampleSentences"]
               }
             },
             concept: {
@@ -177,6 +178,34 @@ export const getSimulationReply = async (
     return "The communication engine is struggling to respond. Error: " + (e.message || "");
   }
 };
+
+export const generateSimulationHint = async (
+    history: { role: string; text: string }[],
+    scenario: { setting: string; role: string },
+    level: string
+): Promise<string> => {
+    const ai = getAI();
+    const modelId = "gemini-3-flash-preview";
+    const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
+
+    const prompt = `
+        Context: ${scenario.setting}. Role: ${scenario.role}.
+        History: ${conversation}
+        Task: Suggest a single, short, confident response for the User.
+        Level: ${level}.
+        Output: Just the response text, nothing else.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: modelId,
+            contents: prompt,
+        });
+        return response.text?.trim() || "";
+    } catch (e) {
+        return "I'm not sure what to say.";
+    }
+}
 
 export const evaluateSimulation = async (
     history: { role: string; text: string }[],
