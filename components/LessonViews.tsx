@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check } from 'lucide-react';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target } from 'lucide-react';
 import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence } from '../services/geminiService';
 
 export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
@@ -282,7 +282,7 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
 
     return (
         <div className="h-full flex flex-col animate-fade-in relative">
-             <div className="flex items-center justify-between mb-6 shrink-0 z-10">
+             <div className="flex items-center justify-between mb-4 shrink-0 z-10">
                 <div className="flex items-center space-x-3 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
                     <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
                         <RefreshCw size={14} />
@@ -294,45 +294,44 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                 </button>
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-6 relative z-0">
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0 relative z-0">
                 <div 
-                    className="w-full max-w-sm aspect-[3/4] max-h-[500px] relative perspective-1000 group cursor-pointer"
+                    className="w-full max-w-sm h-[480px] sm:h-[520px] relative perspective-1000 group cursor-pointer transition-all duration-300"
                     onClick={() => setIsFlipped(!isFlipped)}
                 >
-                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2.5rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
+                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
                         
                         {/* FRONT */}
-                        <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2.5rem] border border-gray-100 dark:border-zinc-700 p-8 flex flex-col items-center justify-center text-center">
-                             {/* Decor */}
-                             <div className="absolute top-6 right-6 text-gray-100 dark:text-zinc-700/50">
-                                <Brain size={120} />
-                             </div>
+                        <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2rem] border border-gray-100 dark:border-zinc-700 p-6 sm:p-8 flex flex-col items-center text-center overflow-hidden">
+                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10 space-y-4">
+                                {/* Decor */}
+                                <Brain size={80} className="text-gray-100 dark:text-zinc-700/50 mb-2 shrink-0" />
 
-                             <div className="space-y-6 relative z-10">
-                                <span className="inline-block px-4 py-1.5 bg-gray-100 dark:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
-                                    Definition
-                                </span>
-                                <p className="text-2xl md:text-3xl font-serif font-bold text-ink dark:text-paper leading-tight">
-                                    "{current.simpleDefinition}"
-                                </p>
+                                <div className="space-y-4">
+                                    <span className="inline-block px-4 py-1.5 bg-gray-100 dark:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
+                                        Definition
+                                    </span>
+                                    <p className="text-2xl sm:text-3xl font-serif font-bold text-ink dark:text-paper leading-tight">
+                                        "{current.simpleDefinition}"
+                                    </p>
+                                </div>
                              </div>
                              
-                             <div className="absolute bottom-8 w-full left-0 flex flex-col items-center animate-pulse opacity-50">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500 mb-1">Tap Card to Flip</span>
+                             <div className="shrink-0 mt-4 animate-pulse opacity-50">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500">Tap Card to Flip</span>
                              </div>
                         </div>
 
                         {/* BACK */}
-                        <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2.5rem] p-8 flex flex-col justify-between text-center overflow-hidden border border-white/10">
-                            {/* Decor */}
-                            <div className="absolute -top-20 -left-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"></div>
-                            <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-black/10 rounded-full blur-3xl"></div>
-
-                            <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-4 opacity-70">The Power Word Is</p>
-                                <h2 className="text-4xl md:text-5xl font-serif font-black mb-3 tracking-tight">{current.word}</h2>
-                                <div className="flex items-center gap-3 mb-6 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm">
-                                    <p className="text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
+                        <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2rem] p-6 sm:p-8 flex flex-col text-center overflow-hidden border border-white/10">
+                            {/* Background Effects */}
+                            <div className="absolute -top-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+                            
+                            <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 opacity-70">The Power Word Is</p>
+                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-3 tracking-tight break-words max-w-full">{current.word}</h2>
+                                <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
+                                    <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); playTextToSpeech(current.word); }} 
                                         className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors"
@@ -342,16 +341,16 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                                 </div>
                             </div>
 
-                            <div className="w-full grid grid-cols-2 gap-3 pt-6 border-t border-white/10 relative z-10">
+                            <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/10 shrink-0 z-20">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleNext(false); }} 
-                                    className="py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
+                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
                                 >
                                     Still Learning
                                 </button>
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleNext(true); }} 
-                                    className="py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
+                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
                                 >
                                     Mastered
                                 </button>
@@ -589,81 +588,67 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   );
 };
 
-export const StoryView: React.FC<{ data: Story }> = ({ data }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const handlePlayStory = async () => {
-      if (isPlaying) return;
-      setIsPlaying(true);
-      try { await playTextToSpeech(data.body); } finally { setIsPlaying(false); }
-  };
-
-  return (
-  <div className="space-y-6 animate-fade-in">
-    <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-[0.2em] text-[10px]">
-            <BookOpen size={14} />
-            <span>Micro Storytelling</span>
-        </div>
-        <button onClick={handlePlayStory} disabled={isPlaying} className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-all border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
-            {isPlaying ? <Loader2 size={14} className="animate-spin" /> : <PlayCircle size={14} />}
-            {isPlaying ? "Rendering Voice..." : "Audio Experience"}
-        </button>
+export const StoryView: React.FC<{ data: Story }> = ({ data }) => (
+  <div className="space-y-6 h-full flex flex-col animate-fade-in">
+    <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-[0.2em] text-[10px]">
+      <History size={14} />
+      <span>Historical Insight</span>
     </div>
 
-    <h2 className="text-3xl font-serif font-black text-ink dark:text-paper leading-tight">{data.headline}</h2>
-    
-    <div className="bg-emerald-50/20 dark:bg-emerald-950/10 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/20 shadow-inner">
-        <div className="prose prose-lg text-gray-800 dark:text-zinc-300 leading-relaxed font-serif text-lg">
-        {data.body.split('\n').map((paragraph, idx) => (
-            <p key={idx} className="mb-4 last:mb-0">{paragraph}</p>
-        ))}
-        </div>
-    </div>
-
-    <div className="flex items-center gap-5 bg-emerald-100 dark:bg-emerald-900/30 p-6 rounded-[1.5rem] text-emerald-950 dark:text-emerald-100 shadow-md border border-emerald-200 dark:border-emerald-800/40">
-      <Brain size={32} className="text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
-      <div>
-          <h3 className="font-black text-[10px] uppercase opacity-50 tracking-widest mb-1.5">The Moral Lesson</h3>
-          <p className="font-black text-lg leading-tight">{data.keyTakeaway}</p>
+    <div>
+      <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-4 leading-tight">{data.headline}</h2>
+      <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-[2rem] border border-rose-100 dark:border-rose-900/30">
+        <p className="text-rose-950 dark:text-rose-200 text-lg leading-relaxed font-serif">
+          {data.body}
+        </p>
       </div>
+    </div>
+
+    <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm mt-auto">
+        <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={16} className="text-amber-500" />
+            <span className="font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest">Key Takeaway</span>
+        </div>
+        <p className="text-ink dark:text-paper font-bold italic">"{data.keyTakeaway}"</p>
     </div>
   </div>
-  );
-};
+);
 
 export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
-  <div className="flex flex-col h-full justify-between animate-fade-in">
-    <div className="space-y-8">
-      <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-black uppercase tracking-[0.2em] text-[10px]">
-        <Brain size={14} />
-        <span>Today's Real-World Lab</span>
-      </div>
+  <div className="space-y-6 h-full flex flex-col animate-fade-in">
+    <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-[0.2em] text-[10px]">
+      <Target size={14} />
+      <span>Daily Action</span>
+    </div>
 
-      <div>
-        <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Mission</h2>
-        <div className="bg-white dark:bg-zinc-800 p-12 rounded-[3rem] shadow-2xl border border-gray-100 dark:border-zinc-700 text-center relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 group-hover:h-4 transition-all duration-500"></div>
-            <p className="text-2xl text-gray-800 dark:text-paper font-black leading-relaxed italic">"{data.task}"</p>
+    <div className="flex-1 flex flex-col justify-center">
+        <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Mission</h2>
+        
+        <div className="bg-emerald-50 dark:bg-emerald-950/20 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/30 shadow-inner mb-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 text-emerald-600 dark:text-emerald-400">
+                <Target size={100} />
+            </div>
+            <p className="text-emerald-900 dark:text-emerald-100 text-2xl font-bold leading-relaxed relative z-10">
+                "{data.task}"
+            </p>
         </div>
-      </div>
 
-      <div className="bg-purple-50 dark:bg-purple-950/20 p-8 rounded-[2rem] border border-purple-100 dark:border-purple-900/30 flex gap-5 items-start shadow-sm">
-        <div className="bg-purple-200 dark:bg-purple-900/40 p-3 rounded-2xl text-purple-700 dark:text-purple-300 shadow-inner">
-            <Lightbulb size={28} />
+        <div className="flex gap-4 items-start">
+             <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-2xl text-amber-600 dark:text-amber-400">
+                 <Lightbulb size={24} />
+             </div>
+             <div>
+                 <span className="block font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Pro Tip</span>
+                 <p className="text-gray-600 dark:text-zinc-300 font-medium leading-relaxed">{data.tip}</p>
+             </div>
         </div>
-        <div>
-            <h3 className="font-black text-[10px] text-purple-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5">Strategic Hint</h3>
-            <p className="text-purple-900 dark:text-purple-200 font-bold leading-relaxed">{data.tip}</p>
-        </div>
-      </div>
     </div>
 
     <button 
-      onClick={onComplete}
-      className="w-full bg-ink dark:bg-purple-600 text-white py-6 rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-purple-600 dark:hover:bg-purple-500 transition-all mt-8 flex items-center justify-center gap-4 shadow-2xl transform hover:-translate-y-1 active:scale-95"
+        onClick={onComplete}
+        className="w-full bg-ink dark:bg-emerald-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-600 dark:hover:bg-emerald-500 transition-all shadow-xl active:scale-95"
     >
-      Finish Day & Save
-      <CheckCircle2 size={24} />
+        Complete Session <CheckCircle2 size={20} />
     </button>
   </div>
 );

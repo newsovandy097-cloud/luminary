@@ -402,7 +402,7 @@ const App = () => {
   if (appState === AppState.REVIEW) {
     return (
         <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center p-4 sm:p-6 overflow-x-hidden transition-colors">
-            <div className="w-full max-w-md h-full flex flex-col flex-1 relative bg-white dark:bg-zinc-900 rounded-[3rem] shadow-2xl p-6 sm:p-12 border border-white dark:border-zinc-800">
+            <div className="w-full max-w-md h-full flex flex-col flex-1 relative bg-white dark:bg-zinc-900 rounded-[3rem] shadow-2xl p-4 sm:p-8 border border-white dark:border-zinc-800">
                 <ReviewVaultView words={reviewWords} onClose={() => setAppState(AppState.DASHBOARD)} />
             </div>
         </div>
