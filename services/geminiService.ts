@@ -240,10 +240,11 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
 };
 
 export const playTextToSpeech = async (text: string): Promise<void> => {
-  try {
-    const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
-    if (!sanitizedText || sanitizedText.length < 2) return;
+  const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
+  if (!sanitizedText || sanitizedText.length < 2) return;
 
+  // Try Gemini TTS First
+  try {
     // Initialize Audio Context
     if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     if (audioContext.state === 'suspended') await audioContext.resume();
@@ -260,7 +261,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: sanitizedText,
+      contents: [{ parts: [{ text: sanitizedText }] }], // Ensure strict structure
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -277,11 +278,52 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
       // STORE IN CACHE
       audioCache.set(sanitizedText, audioBuffer);
       await playAudioBuffer(audioBuffer, audioContext);
+      return;
+    } else {
+        throw new Error("Gemini returned empty audio.");
     }
   } catch (error) {
-    console.error("TTS Error:", error);
+    console.warn("Gemini TTS failed, attempting fallback to browser speech...", error);
+    await playBrowserTTS(sanitizedText);
   }
 }
+
+// Fallback to Web Speech API
+const playBrowserTTS = (text: string): Promise<void> => {
+  return new Promise((resolve) => {
+    if (!('speechSynthesis' in window)) {
+      console.warn("Browser does not support text-to-speech.");
+      resolve();
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Try to find a high-quality English voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Samantha")) 
+                        || voices.find(v => v.lang.startsWith("en"));
+    
+    if (preferredVoice) utterance.voice = preferredVoice;
+    
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = (e) => {
+        console.error("Browser TTS error:", e);
+        resolve(); // Resolve anyway to unblock UI
+    };
+
+    window.speechSynthesis.speak(utterance);
+    
+    // Safety timeout in case onend never fires
+    setTimeout(resolve, 15000);
+  });
+};
 
 async function playAudioBuffer(buffer: AudioBuffer, context: AudioContext) {
   const source = context.createBufferSource();
@@ -302,12 +344,23 @@ function decode(base64: string) {
 }
 
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // Use slice() to ensure we have a fresh, aligned buffer copy of just the audio data
+  const alignedBuffer = data.slice().buffer;
+  
+  // Ensure strict alignment for 16-bit
+  if (alignedBuffer.byteLength % 2 !== 0) {
+      throw new Error("Audio data length is not a multiple of 2 bytes.");
+  }
+
+  const dataInt16 = new Int16Array(alignedBuffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    for (let i = 0; i < frameCount; i++) {
+        channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
   }
   return buffer;
 }
