@@ -60,7 +60,6 @@ export enum AppState {
   DASHBOARD = 'DASHBOARD',
   LOADING = 'LOADING',
   LESSON = 'LESSON',
-  REVIEW = 'REVIEW',
   COMPLETED = 'COMPLETED',
   ERROR = 'ERROR'
 }

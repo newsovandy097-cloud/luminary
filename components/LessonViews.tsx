@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target } from 'lucide-react';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff } from 'lucide-react';
 import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence } from '../services/geminiService';
 
 export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
@@ -109,63 +109,23 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
 
 export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () => void; onSkip: () => void }> = ({ words, onNext, onSkip }) => {
     const [wordIdx, setWordIdx] = useState(0);
-    // Puzzle State
-    const [scrambledWords, setScrambledWords] = useState<{id: number, text: string}[]>([]);
-    const [selectedWords, setSelectedWords] = useState<{id: number, text: string}[]>([]);
-    const [correctOrder, setCorrectOrder] = useState<string[]>([]);
-    const [puzzleSolved, setPuzzleSolved] = useState(false);
-    const [isWrong, setIsWrong] = useState(false);
-
+    const [input, setInput] = useState("");
+    const [feedback, setFeedback] = useState<{ correct: boolean; feedback: string } | null>(null);
+    const [isChecking, setIsChecking] = useState(false);
+    
     const current = words[wordIdx];
 
-    useEffect(() => {
-        // Init Puzzle
-        const sentence = current.exampleSentences && current.exampleSentences.length > 0 
-            ? current.exampleSentences[0] 
-            : (current as any).exampleSentence;
-        
-        // Remove punctuation for easier matching, keep for display? Simpler to just split by space for now.
-        const cleanSentence = sentence.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
-        const parts = cleanSentence.split(/\s+/);
-        setCorrectOrder(parts);
-
-        const items = parts.map((w: string, i: number) => ({ id: i, text: w }));
-        // Shuffle
-        for (let i = items.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [items[i], items[j]] = [items[j], items[i]];
-        }
-        setScrambledWords(items);
-        setSelectedWords([]);
-        setPuzzleSolved(false);
-        setIsWrong(false);
-    }, [wordIdx, current]);
-
-    const handleWordClick = (item: {id: number, text: string}, fromScramble: boolean) => {
-        setIsWrong(false);
-        if (fromScramble) {
-            setScrambledWords(prev => prev.filter(w => w.id !== item.id));
-            setSelectedWords(prev => [...prev, item]);
-        } else {
-            setSelectedWords(prev => prev.filter(w => w.id !== item.id));
-            setScrambledWords(prev => [...prev, item]);
-        }
-    };
-
-    const handleCheck = () => {
-        const currentSentence = selectedWords.map(w => w.text).join(' ');
-        const targetSentence = correctOrder.join(' ');
-        
-        if (currentSentence === targetSentence) {
-            setPuzzleSolved(true);
-            playTextToSpeech(currentSentence);
-        } else {
-            setIsWrong(true);
-            setTimeout(() => setIsWrong(false), 500);
-        }
+    const handleCheck = async () => {
+        if (!input.trim() || isChecking) return;
+        setIsChecking(true);
+        const result = await evaluateSentence(current.word, current.simpleDefinition, input);
+        setFeedback(result);
+        setIsChecking(false);
     };
 
     const handleNext = () => {
+        setFeedback(null);
+        setInput("");
         if (wordIdx < words.length - 1) setWordIdx(wordIdx + 1);
         else onNext();
     };
@@ -174,226 +134,54 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
         <div className="h-full flex flex-col space-y-6 animate-fade-in">
              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-fuchsia-600 dark:text-fuchsia-400 font-black uppercase tracking-[0.2em] text-[10px]">
-                    <Layers size={14} />
-                    <span>Syntax Puzzle {wordIdx + 1} of {words.length}</span>
+                    <PenTool size={14} />
+                    <span>Drill {wordIdx + 1} of {words.length}</span>
                 </div>
                 <button 
                   onClick={onSkip}
                   className="text-[10px] font-black uppercase text-gray-400 dark:text-zinc-500 hover:text-ink dark:hover:text-paper transition-colors flex items-center gap-1"
                 >
-                  Skip <XCircle size={12} />
+                  Skip Practice <XCircle size={12} />
                 </button>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center">
-                <div className="text-center mb-8">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-2">Rebuild the Sentence</p>
-                    <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-2">{current.word}</h2>
-                    <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">"{current.simpleDefinition}"</p>
-                </div>
+            <div className="flex-1">
+                <h3 className="text-xs font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Use it in a sentence:</h3>
+                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-6">{current.word}</h2>
 
-                {/* Drop Zone */}
-                <div className={`min-h-[120px] bg-white dark:bg-zinc-800 rounded-3xl border-2 border-dashed p-4 flex flex-wrap content-start gap-2 mb-6 transition-colors duration-300 ${puzzleSolved ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : isWrong ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-zinc-700'}`}>
-                    {selectedWords.length === 0 && !puzzleSolved && (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-zinc-600 text-sm font-black uppercase tracking-widest pointer-events-none">
-                            Tap words below
-                        </div>
-                    )}
-                    {selectedWords.map((item) => (
-                        <button 
-                            key={item.id} 
-                            onClick={() => !puzzleSolved && handleWordClick(item, false)}
-                            className="bg-ink dark:bg-paper text-white dark:text-ink px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-md animate-fade-in hover:scale-105 active:scale-95 transition-all"
-                        >
-                            {item.text}
-                        </button>
-                    ))}
-                    {puzzleSolved && (
-                        <div className="w-full flex items-center justify-center mt-2 text-green-600 dark:text-green-400 font-black uppercase tracking-widest text-xs gap-2 animate-bounce">
-                            <CheckCircle2 size={16} /> Perfect Syntax
-                        </div>
-                    )}
-                </div>
+                <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={!!feedback}
+                    placeholder={`e.g., "The team showed great ${current.word.toLowerCase()} during the meeting."`}
+                    className="w-full h-32 p-5 bg-white dark:bg-zinc-800 border-2 border-gray-100 dark:border-zinc-700 rounded-3xl resize-none focus:outline-none focus:border-fuchsia-500 transition-all text-lg font-medium leading-relaxed shadow-inner dark:text-paper"
+                />
 
-                {/* Scramble Pool */}
-                <div className="flex flex-wrap justify-center gap-2 mb-4">
-                    {scrambledWords.map((item) => (
-                        <button 
-                            key={item.id} 
-                            onClick={() => handleWordClick(item, true)}
-                            className="bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-sm hover:bg-gray-200 dark:hover:bg-zinc-600 active:scale-95 transition-all"
-                        >
-                            {item.text}
-                        </button>
-                    ))}
-                </div>
+                {feedback && (
+                    <div className={`mt-6 p-6 rounded-3xl border-2 animate-fade-in ${feedback.correct ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/30 text-green-800 dark:text-green-300' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/30 text-orange-800 dark:text-orange-300'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            {feedback.correct ? <CheckCircle2 size={18} /> : <Sparkles size={18} />}
+                            <span className="font-black text-[10px] uppercase tracking-widest">{feedback.correct ? 'Perfect Usage' : 'Coach Hint'}</span>
+                        </div>
+                        <p className="font-bold text-lg">{feedback.feedback}</p>
+                    </div>
+                )}
             </div>
 
             <div className="pt-4">
-                {!puzzleSolved ? (
+                {!feedback ? (
                     <button 
                         onClick={handleCheck}
-                        disabled={selectedWords.length === 0}
-                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!input.trim() || isChecking}
+                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50"
                     >
-                        Check Syntax
+                        {isChecking ? <Loader2 size={24} className="animate-spin mx-auto" /> : 'Evaluate Sentence'}
                     </button>
                 ) : (
-                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in flex items-center justify-center gap-2">
-                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'} <ArrowRight size={20} />
+                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in">
+                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'}
                     </button>
                 )}
-            </div>
-        </div>
-    );
-};
-
-export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => void }> = ({ words, onClose }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [isFlipped, setIsFlipped] = useState(false);
-    const [finished, setFinished] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(false);
-
-    const current = words[currentIndex];
-
-    const handleNext = (mastered: boolean) => {
-        setIsFlipped(false);
-        if (currentIndex < words.length - 1) {
-            setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
-        } else {
-            setTimeout(() => setFinished(true), 300);
-        }
-    };
-
-    const handlePlayAudio = async (e: React.SyntheticEvent) => {
-        e.stopPropagation();
-        if (isPlaying) return;
-        setIsPlaying(true);
-        try {
-            await playTextToSpeech(current.word);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsPlaying(false);
-        }
-    };
-
-    if (finished) {
-        return (
-            <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
-                <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-inner">
-                    <CheckCircle2 size={48} />
-                </div>
-                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-4">Review Complete</h2>
-                <p className="text-gray-500 dark:text-zinc-400 mb-10 max-w-xs text-lg font-medium leading-relaxed">You've successfully refreshed your memory bank.</p>
-                <button onClick={onClose} className="w-full bg-ink dark:bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all">
-                    Return to Dashboard
-                </button>
-            </div>
-        );
-    }
-
-    // Stop propagation handler
-    const stopProp = (e: React.SyntheticEvent) => {
-        e.stopPropagation();
-    };
-
-    return (
-        <div className="h-full flex flex-col animate-fade-in relative">
-             <div className="flex items-center justify-between mb-4 shrink-0 z-10">
-                <div className="flex items-center space-x-3 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
-                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                        <RefreshCw size={14} />
-                    </div>
-                    <span>Vault Card {currentIndex + 1}/{words.length}</span>
-                </div>
-                <button onClick={onClose} className="text-gray-300 dark:text-zinc-600 hover:text-ink dark:hover:text-white transition-colors p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-full">
-                    <XCircle size={24} />
-                </button>
-            </div>
-
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0 relative z-0">
-                <div 
-                    className="w-full max-w-sm h-[480px] sm:h-[520px] relative perspective-1000 group cursor-pointer transition-all duration-300"
-                    onClick={() => setIsFlipped(!isFlipped)}
-                >
-                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
-                        
-                        {/* FRONT */}
-                        <div 
-                            className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2rem] border border-gray-100 dark:border-zinc-700 p-6 sm:p-8 flex flex-col items-center text-center overflow-hidden"
-                            style={{ zIndex: isFlipped ? 0 : 20 }}
-                        >
-                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10 space-y-4">
-                                {/* Decor */}
-                                <Brain size={80} className="text-gray-100 dark:text-zinc-700/50 mb-2 shrink-0" />
-
-                                <div className="space-y-4">
-                                    <span className="inline-block px-4 py-1.5 bg-gray-100 dark:bg-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
-                                        Definition
-                                    </span>
-                                    <p className="text-2xl sm:text-3xl font-serif font-bold text-ink dark:text-paper leading-tight">
-                                        "{current.simpleDefinition}"
-                                    </p>
-                                </div>
-                             </div>
-                             
-                             <div className="shrink-0 mt-4 animate-pulse opacity-50">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 dark:text-indigo-500">Tap Card to Flip</span>
-                             </div>
-                        </div>
-
-                        {/* BACK */}
-                        <div 
-                            className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2rem] p-6 sm:p-8 flex flex-col text-center overflow-hidden border border-white/10"
-                            style={{ zIndex: isFlipped ? 20 : 0 }}
-                        >
-                            {/* Background Effects */}
-                            <div className="absolute -top-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-                            
-                            <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 opacity-70">The Power Word Is</p>
-                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-3 tracking-tight break-words max-w-full leading-none">{current.word}</h2>
-                                <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
-                                    <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
-                                    <button 
-                                        type="button"
-                                        onClick={handlePlayAudio}
-                                        onMouseDown={stopProp}
-                                        onMouseUp={stopProp}
-                                        onTouchStart={stopProp}
-                                        onTouchEnd={stopProp}
-                                        disabled={isPlaying}
-                                        className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {isPlaying ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/10 shrink-0 z-20">
-                                <button 
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleNext(false); }} 
-                                    onMouseDown={stopProp}
-                                    onTouchEnd={stopProp}
-                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
-                                >
-                                    Still Learning
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleNext(true); }} 
-                                    onMouseDown={stopProp}
-                                    onTouchEnd={stopProp}
-                                    className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
-                                >
-                                    Mastered
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );
@@ -624,62 +412,81 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   );
 };
 
-export const StoryView: React.FC<{ data: Story }> = ({ data }) => (
-  <div className="space-y-6 h-full flex flex-col animate-fade-in">
-    <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-[0.2em] text-[10px]">
-      <History size={14} />
-      <span>Historical Context</span>
-    </div>
-    
-    <div>
-      <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-4 leading-tight">{data.headline}</h2>
-    </div>
+export const StoryView: React.FC<{ data: Story }> = ({ data }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const handlePlayStory = async () => {
+      if (isPlaying) return;
+      setIsPlaying(true);
+      try { await playTextToSpeech(data.body); } finally { setIsPlaying(false); }
+  };
 
-    <div className="flex-1 overflow-y-auto hide-scrollbar pr-2">
-      <p className="text-gray-600 dark:text-zinc-400 text-lg leading-relaxed font-medium font-serif border-l-4 border-rose-100 dark:border-rose-900/30 pl-4">
-        {data.body}
-      </p>
-    </div>
-
-    <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-[2rem] border border-rose-100 dark:border-rose-900/30">
-        <p className="text-[10px] text-rose-700 dark:text-rose-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-            <Lightbulb size={14} /> Key Insight
-        </p>
-        <p className="text-rose-900 dark:text-rose-200 text-xl font-bold italic leading-relaxed">
-          "{data.keyTakeaway}"
-        </p>
-    </div>
-  </div>
-);
-
-export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
-  <div className="h-full flex flex-col animate-fade-in text-center justify-center space-y-8">
-     <div className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-sm font-bold tracking-wide uppercase mx-auto">
-      <Target size={16} />
-      Daily Mission
-    </div>
-
-    <div>
-        <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Challenge</h2>
-        <div className="bg-indigo-600 text-white p-8 rounded-[2.5rem] shadow-2xl transform hover:scale-[1.02] transition-transform duration-500">
-            <p className="text-2xl font-bold leading-relaxed">
-                "{data.task}"
-            </p>
+  return (
+  <div className="space-y-6 animate-fade-in">
+    <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-[0.2em] text-[10px]">
+            <BookOpen size={14} />
+            <span>Micro Storytelling</span>
         </div>
-    </div>
-
-    <div className="flex items-start gap-4 text-left max-w-sm mx-auto bg-gray-50 dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700">
-        <div className="bg-white dark:bg-zinc-700 p-2 rounded-xl text-indigo-500 shadow-sm"><Sparkles size={20} /></div>
-        <div>
-            <span className="block font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Pro Tip</span>
-            <p className="text-sm font-medium text-gray-600 dark:text-zinc-300 italic">{data.tip}</p>
-        </div>
-    </div>
-
-    <div className="pt-4">
-        <button onClick={onComplete} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-5 rounded-[2rem] font-black uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-50 transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95">
-            <CheckCircle2 size={20} /> Complete Session
+        <button onClick={handlePlayStory} disabled={isPlaying} className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-all border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+            {isPlaying ? <Loader2 size={14} className="animate-spin" /> : <PlayCircle size={14} />}
+            {isPlaying ? "Rendering Voice..." : "Audio Experience"}
         </button>
     </div>
+
+    <h2 className="text-3xl font-serif font-black text-ink dark:text-paper leading-tight">{data.headline}</h2>
+    
+    <div className="bg-emerald-50/20 dark:bg-emerald-950/10 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/20 shadow-inner">
+        <div className="prose prose-lg text-gray-800 dark:text-zinc-300 leading-relaxed font-serif text-lg">
+        {data.body.split('\n').map((paragraph, idx) => (
+            <p key={idx} className="mb-4 last:mb-0">{paragraph}</p>
+        ))}
+        </div>
+    </div>
+
+    <div className="flex items-center gap-5 bg-emerald-100 dark:bg-emerald-900/30 p-6 rounded-[1.5rem] text-emerald-950 dark:text-emerald-100 shadow-md border border-emerald-200 dark:border-emerald-800/40">
+      <Brain size={32} className="text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
+      <div>
+          <h3 className="font-black text-[10px] uppercase opacity-50 tracking-widest mb-1.5">The Moral Lesson</h3>
+          <p className="font-black text-lg leading-tight">{data.keyTakeaway}</p>
+      </div>
+    </div>
+  </div>
+  );
+};
+
+export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
+  <div className="flex flex-col h-full justify-between animate-fade-in">
+    <div className="space-y-8">
+      <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-black uppercase tracking-[0.2em] text-[10px]">
+        <Brain size={14} />
+        <span>Today's Real-World Lab</span>
+      </div>
+
+      <div>
+        <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Mission</h2>
+        <div className="bg-white dark:bg-zinc-800 p-12 rounded-[3rem] shadow-2xl border border-gray-100 dark:border-zinc-700 text-center relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 group-hover:h-4 transition-all duration-500"></div>
+            <p className="text-2xl text-gray-800 dark:text-paper font-black leading-relaxed italic">"{data.task}"</p>
+        </div>
+      </div>
+
+      <div className="bg-purple-50 dark:bg-purple-950/20 p-8 rounded-[2rem] border border-purple-100 dark:border-purple-900/30 flex gap-5 items-start shadow-sm">
+        <div className="bg-purple-200 dark:bg-purple-900/40 p-3 rounded-2xl text-purple-700 dark:text-purple-300 shadow-inner">
+            <Lightbulb size={28} />
+        </div>
+        <div>
+            <h3 className="font-black text-[10px] text-purple-400 dark:text-zinc-500 uppercase tracking-widest mb-1.5">Strategic Hint</h3>
+            <p className="text-purple-900 dark:text-purple-200 font-bold leading-relaxed">{data.tip}</p>
+        </div>
+      </div>
+    </div>
+
+    <button 
+      onClick={onComplete}
+      className="w-full bg-ink dark:bg-purple-600 text-white py-6 rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-purple-600 dark:hover:bg-purple-500 transition-all mt-8 flex items-center justify-center gap-4 shadow-2xl transform hover:-translate-y-1 active:scale-95"
+    >
+      Finish Day & Save
+      <CheckCircle2 size={24} />
+    </button>
   </div>
 );
