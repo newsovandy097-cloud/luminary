@@ -256,7 +256,6 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
     const current = words[currentIndex];
 
     const handleNext = (mastered: boolean) => {
-        // In a real app, 'mastered' could update local storage stats
         setIsFlipped(false);
         if (currentIndex < words.length - 1) {
             setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
@@ -280,6 +279,11 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
         );
     }
 
+    // Stop propagation handler
+    const stopProp = (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+    };
+
     return (
         <div className="h-full flex flex-col animate-fade-in relative">
              <div className="flex items-center justify-between mb-4 shrink-0 z-10">
@@ -302,7 +306,10 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                     <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ease-out-back shadow-2xl shadow-indigo-200 dark:shadow-black/50 rounded-[2rem] ${isFlipped ? 'rotate-y-180' : ''}`}>
                         
                         {/* FRONT */}
-                        <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2rem] border border-gray-100 dark:border-zinc-700 p-6 sm:p-8 flex flex-col items-center text-center overflow-hidden">
+                        <div 
+                            className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-800 rounded-[2rem] border border-gray-100 dark:border-zinc-700 p-6 sm:p-8 flex flex-col items-center text-center overflow-hidden"
+                            style={{ zIndex: isFlipped ? 0 : 20 }}
+                        >
                              <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10 space-y-4">
                                 {/* Decor */}
                                 <Brain size={80} className="text-gray-100 dark:text-zinc-700/50 mb-2 shrink-0" />
@@ -323,7 +330,10 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                         </div>
 
                         {/* BACK */}
-                        <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2rem] p-6 sm:p-8 flex flex-col text-center overflow-hidden border border-white/10">
+                        <div 
+                            className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-[2rem] p-6 sm:p-8 flex flex-col text-center overflow-hidden border border-white/10"
+                            style={{ zIndex: isFlipped ? 20 : 0 }}
+                        >
                             {/* Background Effects */}
                             <div className="absolute -top-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
                             
@@ -333,11 +343,15 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                                 <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
                                     <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
                                     <button 
+                                        type="button"
                                         onClick={(e) => { 
                                             e.stopPropagation(); 
                                             playTextToSpeech(current.word); 
                                         }} 
-                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onMouseDown={stopProp}
+                                        onMouseUp={stopProp}
+                                        onTouchStart={stopProp}
+                                        onTouchEnd={stopProp}
                                         className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer"
                                     >
                                         <Volume2 size={16} />
@@ -347,13 +361,19 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
 
                             <div className="w-full grid grid-cols-2 gap-3 pt-4 border-t border-white/10 shrink-0 z-20">
                                 <button 
+                                    type="button"
                                     onClick={(e) => { e.stopPropagation(); handleNext(false); }} 
+                                    onMouseDown={stopProp}
+                                    onTouchEnd={stopProp}
                                     className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-indigo-900/40 hover:bg-indigo-900/60 transition-colors text-indigo-200 border border-indigo-500/30 backdrop-blur-sm"
                                 >
                                     Still Learning
                                 </button>
                                 <button 
+                                    type="button"
                                     onClick={(e) => { e.stopPropagation(); handleNext(true); }} 
+                                    onMouseDown={stopProp}
+                                    onTouchEnd={stopProp}
                                     className="py-3 sm:py-4 rounded-2xl font-black uppercase text-[9px] sm:text-[10px] tracking-widest bg-white text-indigo-900 hover:scale-105 transition-transform shadow-lg"
                                 >
                                     Mastered
