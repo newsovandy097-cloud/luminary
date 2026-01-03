@@ -302,12 +302,23 @@ function decode(base64: string) {
 }
 
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // Use slice() to ensure we have a fresh, aligned buffer copy of just the audio data
+  const alignedBuffer = data.slice().buffer;
+  
+  // Ensure strict alignment for 16-bit
+  if (alignedBuffer.byteLength % 2 !== 0) {
+      throw new Error("Audio data length is not a multiple of 2 bytes.");
+  }
+
+  const dataInt16 = new Int16Array(alignedBuffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    for (let i = 0; i < frameCount; i++) {
+        channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
   }
   return buffer;
 }

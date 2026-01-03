@@ -252,6 +252,7 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [finished, setFinished] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     const current = words[currentIndex];
 
@@ -261,6 +262,19 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
             setTimeout(() => setCurrentIndex(prev => prev + 1), 300);
         } else {
             setTimeout(() => setFinished(true), 300);
+        }
+    };
+
+    const handlePlayAudio = async (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+        if (isPlaying) return;
+        setIsPlaying(true);
+        try {
+            await playTextToSpeech(current.word);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsPlaying(false);
         }
     };
 
@@ -344,17 +358,15 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                                     <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
                                     <button 
                                         type="button"
-                                        onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            playTextToSpeech(current.word); 
-                                        }} 
+                                        onClick={handlePlayAudio}
                                         onMouseDown={stopProp}
                                         onMouseUp={stopProp}
                                         onTouchStart={stopProp}
                                         onTouchEnd={stopProp}
-                                        className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer"
+                                        disabled={isPlaying}
+                                        className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        <Volume2 size={16} />
+                                        {isPlaying ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />}
                                     </button>
                                 </div>
                             </div>
@@ -616,63 +628,58 @@ export const StoryView: React.FC<{ data: Story }> = ({ data }) => (
   <div className="space-y-6 h-full flex flex-col animate-fade-in">
     <div className="flex items-center space-x-2 text-rose-600 dark:text-rose-400 font-black uppercase tracking-[0.2em] text-[10px]">
       <History size={14} />
-      <span>Historical Insight</span>
+      <span>Historical Context</span>
     </div>
-
+    
     <div>
       <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-4 leading-tight">{data.headline}</h2>
-      <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-[2rem] border border-rose-100 dark:border-rose-900/30">
-        <p className="text-rose-950 dark:text-rose-200 text-lg leading-relaxed font-serif">
-          {data.body}
-        </p>
-      </div>
     </div>
 
-    <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm mt-auto">
-        <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={16} className="text-amber-500" />
-            <span className="font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest">Key Takeaway</span>
-        </div>
-        <p className="text-ink dark:text-paper font-bold italic">"{data.keyTakeaway}"</p>
+    <div className="flex-1 overflow-y-auto hide-scrollbar pr-2">
+      <p className="text-gray-600 dark:text-zinc-400 text-lg leading-relaxed font-medium font-serif border-l-4 border-rose-100 dark:border-rose-900/30 pl-4">
+        {data.body}
+      </p>
+    </div>
+
+    <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-[2rem] border border-rose-100 dark:border-rose-900/30">
+        <p className="text-[10px] text-rose-700 dark:text-rose-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+            <Lightbulb size={14} /> Key Insight
+        </p>
+        <p className="text-rose-900 dark:text-rose-200 text-xl font-bold italic leading-relaxed">
+          "{data.keyTakeaway}"
+        </p>
     </div>
   </div>
 );
 
 export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
-  <div className="space-y-6 h-full flex flex-col animate-fade-in">
-    <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-[0.2em] text-[10px]">
-      <Target size={14} />
-      <span>Daily Action</span>
+  <div className="h-full flex flex-col animate-fade-in text-center justify-center space-y-8">
+     <div className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-sm font-bold tracking-wide uppercase mx-auto">
+      <Target size={16} />
+      Daily Mission
     </div>
 
-    <div className="flex-1 flex flex-col justify-center">
-        <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Mission</h2>
-        
-        <div className="bg-emerald-50 dark:bg-emerald-950/20 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/30 shadow-inner mb-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10 text-emerald-600 dark:text-emerald-400">
-                <Target size={100} />
-            </div>
-            <p className="text-emerald-900 dark:text-emerald-100 text-2xl font-bold leading-relaxed relative z-10">
+    <div>
+        <h2 className="text-3xl sm:text-4xl font-serif font-black text-ink dark:text-paper mb-6">Your Challenge</h2>
+        <div className="bg-indigo-600 text-white p-8 rounded-[2.5rem] shadow-2xl transform hover:scale-[1.02] transition-transform duration-500">
+            <p className="text-2xl font-bold leading-relaxed">
                 "{data.task}"
             </p>
         </div>
+    </div>
 
-        <div className="flex gap-4 items-start">
-             <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-2xl text-amber-600 dark:text-amber-400">
-                 <Lightbulb size={24} />
-             </div>
-             <div>
-                 <span className="block font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Pro Tip</span>
-                 <p className="text-gray-600 dark:text-zinc-300 font-medium leading-relaxed">{data.tip}</p>
-             </div>
+    <div className="flex items-start gap-4 text-left max-w-sm mx-auto bg-gray-50 dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700">
+        <div className="bg-white dark:bg-zinc-700 p-2 rounded-xl text-indigo-500 shadow-sm"><Sparkles size={20} /></div>
+        <div>
+            <span className="block font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Pro Tip</span>
+            <p className="text-sm font-medium text-gray-600 dark:text-zinc-300 italic">{data.tip}</p>
         </div>
     </div>
 
-    <button 
-        onClick={onComplete}
-        className="w-full bg-ink dark:bg-emerald-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-600 dark:hover:bg-emerald-500 transition-all shadow-xl active:scale-95"
-    >
-        Complete Session <CheckCircle2 size={20} />
-    </button>
+    <div className="pt-4">
+        <button onClick={onComplete} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-5 rounded-[2rem] font-black uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-50 transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95">
+            <CheckCircle2 size={20} /> Complete Session
+        </button>
+    </div>
   </div>
 );
