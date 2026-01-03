@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
-import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
+import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel, Vocabulary } from './types';
 import { ProgressBar } from './components/ProgressBar';
-import { IntroView, VocabularyView, ConceptView, StoryView, ChallengeView, SimulatorView, VocabularyPracticeView } from './components/LessonViews';
+import { IntroView, VocabularyView, ConceptView, StoryView, ChallengeView, SimulatorView, VocabularyPracticeView, ReviewVaultView } from './components/LessonViews';
 
 const App = () => {
   const [appState, setAppState] = useState<AppState>(AppState.DASHBOARD);
@@ -15,6 +15,9 @@ const App = () => {
   const [history, setHistory] = useState<DailyLesson[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   
+  // Review Session State
+  const [reviewWords, setReviewWords] = useState<Vocabulary[]>([]);
+
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -143,6 +146,23 @@ const App = () => {
       setLesson(pastLesson);
       setStepIndex(0);
       setAppState(AppState.LESSON);
+  };
+
+  const handleOpenVault = () => {
+      if (history.length === 0) return;
+      
+      // Collect all words
+      const allWords: Vocabulary[] = [];
+      history.forEach(h => {
+          h.vocabularies.forEach(v => allWords.push(v));
+      });
+
+      // Shuffle and pick up to 5
+      const shuffled = allWords.sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 5);
+      
+      setReviewWords(selected);
+      setAppState(AppState.REVIEW);
   };
 
   const handleDownloadPDF = () => {
@@ -379,6 +399,16 @@ const App = () => {
     );
   }
 
+  if (appState === AppState.REVIEW) {
+    return (
+        <div className="min-h-screen bg-surface dark:bg-ink flex flex-col items-center p-4 sm:p-6 overflow-x-hidden transition-colors">
+            <div className="w-full max-w-md h-full flex flex-col flex-1 relative bg-white dark:bg-zinc-900 rounded-[3rem] shadow-2xl p-6 sm:p-12 border border-white dark:border-zinc-800">
+                <ReviewVaultView words={reviewWords} onClose={() => setAppState(AppState.DASHBOARD)} />
+            </div>
+        </div>
+    );
+  }
+
   if (appState === AppState.DASHBOARD) {
     return (
       <div className="min-h-screen bg-surface dark:bg-ink flex items-center justify-center p-4 transition-colors duration-300">
@@ -442,6 +472,13 @@ const App = () => {
                 ))}
             </div>
           </div>
+          
+           {history.length > 0 && (
+             <button onClick={handleOpenVault} className="w-full bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 p-4 rounded-[2rem] shadow-sm border border-indigo-100 dark:border-zinc-800 flex items-center justify-center gap-3 hover:bg-indigo-50 dark:hover:bg-zinc-800 transition-all group">
+                <RefreshCw size={20} className="group-hover:rotate-180 transition-transform duration-500" />
+                <span className="font-black uppercase tracking-widest text-xs">Open Review Vault</span>
+             </button>
+          )}
 
           {memoryAnchor && !anchorCompleted && (
               <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-[1.5px] rounded-[2rem] shadow-lg transform transition-all hover:scale-[1.01]">

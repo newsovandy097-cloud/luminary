@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff } from 'lucide-react';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check } from 'lucide-react';
 import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence } from '../services/geminiService';
 
 export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
@@ -109,23 +109,63 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
 
 export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () => void; onSkip: () => void }> = ({ words, onNext, onSkip }) => {
     const [wordIdx, setWordIdx] = useState(0);
-    const [input, setInput] = useState("");
-    const [feedback, setFeedback] = useState<{ correct: boolean; feedback: string } | null>(null);
-    const [isChecking, setIsChecking] = useState(false);
-    
+    // Puzzle State
+    const [scrambledWords, setScrambledWords] = useState<{id: number, text: string}[]>([]);
+    const [selectedWords, setSelectedWords] = useState<{id: number, text: string}[]>([]);
+    const [correctOrder, setCorrectOrder] = useState<string[]>([]);
+    const [puzzleSolved, setPuzzleSolved] = useState(false);
+    const [isWrong, setIsWrong] = useState(false);
+
     const current = words[wordIdx];
 
-    const handleCheck = async () => {
-        if (!input.trim() || isChecking) return;
-        setIsChecking(true);
-        const result = await evaluateSentence(current.word, current.simpleDefinition, input);
-        setFeedback(result);
-        setIsChecking(false);
+    useEffect(() => {
+        // Init Puzzle
+        const sentence = current.exampleSentences && current.exampleSentences.length > 0 
+            ? current.exampleSentences[0] 
+            : (current as any).exampleSentence;
+        
+        // Remove punctuation for easier matching, keep for display? Simpler to just split by space for now.
+        const cleanSentence = sentence.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+        const parts = cleanSentence.split(/\s+/);
+        setCorrectOrder(parts);
+
+        const items = parts.map((w: string, i: number) => ({ id: i, text: w }));
+        // Shuffle
+        for (let i = items.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [items[i], items[j]] = [items[j], items[i]];
+        }
+        setScrambledWords(items);
+        setSelectedWords([]);
+        setPuzzleSolved(false);
+        setIsWrong(false);
+    }, [wordIdx, current]);
+
+    const handleWordClick = (item: {id: number, text: string}, fromScramble: boolean) => {
+        setIsWrong(false);
+        if (fromScramble) {
+            setScrambledWords(prev => prev.filter(w => w.id !== item.id));
+            setSelectedWords(prev => [...prev, item]);
+        } else {
+            setSelectedWords(prev => prev.filter(w => w.id !== item.id));
+            setScrambledWords(prev => [...prev, item]);
+        }
+    };
+
+    const handleCheck = () => {
+        const currentSentence = selectedWords.map(w => w.text).join(' ');
+        const targetSentence = correctOrder.join(' ');
+        
+        if (currentSentence === targetSentence) {
+            setPuzzleSolved(true);
+            playTextToSpeech(currentSentence);
+        } else {
+            setIsWrong(true);
+            setTimeout(() => setIsWrong(false), 500);
+        }
     };
 
     const handleNext = () => {
-        setFeedback(null);
-        setInput("");
         if (wordIdx < words.length - 1) setWordIdx(wordIdx + 1);
         else onNext();
     };
@@ -134,54 +174,155 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
         <div className="h-full flex flex-col space-y-6 animate-fade-in">
              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-fuchsia-600 dark:text-fuchsia-400 font-black uppercase tracking-[0.2em] text-[10px]">
-                    <PenTool size={14} />
-                    <span>Drill {wordIdx + 1} of {words.length}</span>
+                    <Layers size={14} />
+                    <span>Syntax Puzzle {wordIdx + 1} of {words.length}</span>
                 </div>
                 <button 
                   onClick={onSkip}
                   className="text-[10px] font-black uppercase text-gray-400 dark:text-zinc-500 hover:text-ink dark:hover:text-paper transition-colors flex items-center gap-1"
                 >
-                  Skip Practice <XCircle size={12} />
+                  Skip <XCircle size={12} />
                 </button>
             </div>
 
-            <div className="flex-1">
-                <h3 className="text-xs font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2">Use it in a sentence:</h3>
-                <h2 className="text-4xl font-serif font-black text-ink dark:text-paper mb-6">{current.word}</h2>
+            <div className="flex-1 flex flex-col justify-center">
+                <div className="text-center mb-8">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-2">Rebuild the Sentence</p>
+                    <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-2">{current.word}</h2>
+                    <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">"{current.simpleDefinition}"</p>
+                </div>
 
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    disabled={!!feedback}
-                    placeholder={`e.g., "The team showed great ${current.word.toLowerCase()} during the meeting."`}
-                    className="w-full h-32 p-5 bg-white dark:bg-zinc-800 border-2 border-gray-100 dark:border-zinc-700 rounded-3xl resize-none focus:outline-none focus:border-fuchsia-500 transition-all text-lg font-medium leading-relaxed shadow-inner dark:text-paper"
-                />
-
-                {feedback && (
-                    <div className={`mt-6 p-6 rounded-3xl border-2 animate-fade-in ${feedback.correct ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/30 text-green-800 dark:text-green-300' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/30 text-orange-800 dark:text-orange-300'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                            {feedback.correct ? <CheckCircle2 size={18} /> : <Sparkles size={18} />}
-                            <span className="font-black text-[10px] uppercase tracking-widest">{feedback.correct ? 'Perfect Usage' : 'Coach Hint'}</span>
+                {/* Drop Zone */}
+                <div className={`min-h-[120px] bg-white dark:bg-zinc-800 rounded-3xl border-2 border-dashed p-4 flex flex-wrap content-start gap-2 mb-6 transition-colors duration-300 ${puzzleSolved ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : isWrong ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-zinc-700'}`}>
+                    {selectedWords.length === 0 && !puzzleSolved && (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-zinc-600 text-sm font-black uppercase tracking-widest pointer-events-none">
+                            Tap words below
                         </div>
-                        <p className="font-bold text-lg">{feedback.feedback}</p>
-                    </div>
-                )}
+                    )}
+                    {selectedWords.map((item) => (
+                        <button 
+                            key={item.id} 
+                            onClick={() => !puzzleSolved && handleWordClick(item, false)}
+                            className="bg-ink dark:bg-paper text-white dark:text-ink px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-md animate-fade-in hover:scale-105 active:scale-95 transition-all"
+                        >
+                            {item.text}
+                        </button>
+                    ))}
+                    {puzzleSolved && (
+                        <div className="w-full flex items-center justify-center mt-2 text-green-600 dark:text-green-400 font-black uppercase tracking-widest text-xs gap-2 animate-bounce">
+                            <CheckCircle2 size={16} /> Perfect Syntax
+                        </div>
+                    )}
+                </div>
+
+                {/* Scramble Pool */}
+                <div className="flex flex-wrap justify-center gap-2 mb-4">
+                    {scrambledWords.map((item) => (
+                        <button 
+                            key={item.id} 
+                            onClick={() => handleWordClick(item, true)}
+                            className="bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-sm hover:bg-gray-200 dark:hover:bg-zinc-600 active:scale-95 transition-all"
+                        >
+                            {item.text}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="pt-4">
-                {!feedback ? (
+                {!puzzleSolved ? (
                     <button 
                         onClick={handleCheck}
-                        disabled={!input.trim() || isChecking}
-                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50"
+                        disabled={selectedWords.length === 0}
+                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isChecking ? <Loader2 size={24} className="animate-spin mx-auto" /> : 'Evaluate Sentence'}
+                        Check Syntax
                     </button>
                 ) : (
-                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in">
-                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'}
+                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in flex items-center justify-center gap-2">
+                        {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'} <ArrowRight size={20} />
                     </button>
                 )}
+            </div>
+        </div>
+    );
+};
+
+export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => void }> = ({ words, onClose }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isFlipped, setIsFlipped] = useState(false);
+    const [finished, setFinished] = useState(false);
+
+    const current = words[currentIndex];
+
+    const handleNext = () => {
+        setIsFlipped(false);
+        if (currentIndex < words.length - 1) {
+            setTimeout(() => setCurrentIndex(prev => prev + 1), 200);
+        } else {
+            setFinished(true);
+        }
+    };
+
+    if (finished) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in">
+                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle2 size={40} />
+                </div>
+                <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-4">Review Complete</h2>
+                <p className="text-gray-500 dark:text-zinc-400 mb-8 max-w-xs">You've refreshed your memory bank. Spaced repetition builds permanent fluency.</p>
+                <button onClick={onClose} className="w-full bg-ink dark:bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl">
+                    Return to Dashboard
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-full flex flex-col animate-fade-in">
+             <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-[0.2em] text-[10px]">
+                    <RefreshCw size={14} />
+                    <span>Memory Vault {currentIndex + 1}/{words.length}</span>
+                </div>
+                <button onClick={onClose} className="text-gray-400 hover:text-ink dark:hover:text-white transition-colors">
+                    <XCircle size={20} />
+                </button>
+            </div>
+
+            <div className="flex-1 perspective-1000 relative">
+                <div className={`w-full h-full relative preserve-3d transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`}>
+                    {/* Front */}
+                    <div className="absolute w-full h-full backface-hidden bg-white dark:bg-zinc-800 rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-zinc-700 p-8 flex flex-col items-center justify-center text-center">
+                        <Brain size={48} className="text-gray-200 dark:text-zinc-700 mb-6" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-4">Definition</p>
+                        <p className="text-2xl font-medium text-ink dark:text-paper leading-relaxed">"{current.simpleDefinition}"</p>
+                        <p className="mt-8 text-sm text-indigo-500 font-bold opacity-50">Tap to Reveal Word</p>
+                    </div>
+
+                    {/* Back */}
+                    <div className="absolute w-full h-full backface-hidden rotate-y-180 bg-indigo-600 dark:bg-indigo-900 text-white rounded-[2.5rem] shadow-xl p-8 flex flex-col items-center justify-center text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-4">The Word Is</p>
+                        <h2 className="text-5xl font-serif font-black mb-2">{current.word}</h2>
+                        <p className="text-lg opacity-80 font-serif mb-6">/{current.pronunciation}/</p>
+                        <button onClick={() => playTextToSpeech(current.word)} className="p-3 bg-white/10 rounded-full hover:bg-white/20 transition-all mb-4">
+                            <Volume2 size={24} />
+                        </button>
+                        <div className="mt-6 w-full flex gap-3">
+                            <button onClick={handleNext} className="flex-1 bg-white/10 py-4 rounded-xl font-bold uppercase text-xs hover:bg-white/20 transition-all">Still Learning</button>
+                            <button onClick={handleNext} className="flex-1 bg-white text-indigo-900 py-4 rounded-xl font-bold uppercase text-xs hover:scale-105 transition-all shadow-lg">I Knew It</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="h-20 flex items-center justify-center">
+                 {!isFlipped && (
+                     <button onClick={() => setIsFlipped(true)} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl">
+                        Reveal Answer
+                     </button>
+                 )}
             </div>
         </div>
     );
