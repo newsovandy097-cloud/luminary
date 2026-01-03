@@ -329,12 +329,16 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                             
                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 opacity-70">The Power Word Is</p>
-                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-3 tracking-tight break-words max-w-full">{current.word}</h2>
+                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-3 tracking-tight break-words max-w-full leading-none">{current.word}</h2>
                                 <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
                                     <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
                                     <button 
-                                        onClick={(e) => { e.stopPropagation(); playTextToSpeech(current.word); }} 
-                                        className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors"
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            playTextToSpeech(current.word); 
+                                        }} 
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        className="relative z-50 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors active:scale-95 cursor-pointer"
                                     >
                                         <Volume2 size={16} />
                                     </button>
