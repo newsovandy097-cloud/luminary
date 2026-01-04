@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target, Zap, Anchor, Image as ImageIcon, Paintbrush, Wand2, Info, MessageSquareQuote } from 'lucide-react';
-import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence, generateVisualAnchor, getSimSuggestion, getGrammarHint } from '../services/geminiService';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target, Zap, Anchor, Wand2, Info, MessageSquareQuote } from 'lucide-react';
+import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence, getSimSuggestion, getGrammarHint } from '../services/geminiService';
 
 export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
   <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-6">
@@ -33,26 +33,8 @@ export const IntroView: React.FC<{ theme: string; level: string; onNext: () => v
 export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }> = ({ data, onNext }) => {
   const [index, setIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [images, setImages] = useState<Record<number, string>>({});
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const current = data[index];
-
-  useEffect(() => {
-    // Generate image if not exists for current word
-    const loadVisualAnchor = async () => {
-      if (!images[index] && !isGeneratingImage) {
-        setIsGeneratingImage(true);
-        try {
-          const url = await generateVisualAnchor(current.mnemoLink);
-          setImages(prev => ({ ...prev, [index]: url }));
-        } finally {
-          setIsGeneratingImage(false);
-        }
-      }
-    };
-    loadVisualAnchor();
-  }, [index, current.mnemoLink]);
 
   const handlePlay = async () => {
     if (isPlaying) return;
@@ -80,32 +62,6 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     </div>
     
     <div className="flex-1 overflow-y-auto hide-scrollbar">
-      {/* Visual Anchor Art Gallery Style */}
-      <div className="mb-8 relative group">
-          <div className="aspect-square w-full bg-gray-50 dark:bg-zinc-800 rounded-[2.5rem] border-2 border-gray-100 dark:border-zinc-700 overflow-hidden shadow-2xl relative">
-              {images[index] ? (
-                  <img src={images[index]} alt="Visual Anchor" className="w-full h-full object-cover animate-fade-in transition-transform duration-700 group-hover:scale-110" />
-              ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
-                      <div className="relative">
-                          <Paintbrush size={48} className="text-indigo-200 dark:text-zinc-600 animate-pulse" />
-                          <Sparkles size={24} className="absolute -top-2 -right-2 text-indigo-400 animate-bounce" />
-                      </div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 dark:text-zinc-500">Neural Painting in progress...</p>
-                      <div className="w-32 h-1 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-600 dark:bg-indigo-400 animate-[loading_2s_ease-in-out_infinite]"></div>
-                      </div>
-                  </div>
-              )}
-              {/* Overlay Label */}
-              <div className="absolute top-4 left-4">
-                  <span className="bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-white/20">
-                      <ImageIcon size={10} /> Visual Anchor
-                  </span>
-              </div>
-          </div>
-      </div>
-
       <div className="flex items-center justify-between mb-2">
           <div className="flex flex-col">
              <div className="flex items-baseline gap-2 mb-2">

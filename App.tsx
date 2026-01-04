@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Trash2 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -143,6 +143,22 @@ const App = () => {
       setLesson(pastLesson);
       setStepIndex(0);
       setAppState(AppState.LESSON);
+  };
+
+  const handleDeleteHistory = () => {
+      if (window.confirm("Are you sure you want to clear your entire learning history?")) {
+          setHistory([]);
+          localStorage.removeItem('luminary_history');
+      }
+  };
+
+  const handleDeleteSession = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      if (window.confirm("Delete this session record?")) {
+          const newHistory = history.filter(h => h.id !== id);
+          setHistory(newHistory);
+          localStorage.setItem('luminary_history', JSON.stringify(newHistory));
+      }
   };
 
   const handleDownloadPDF = () => {
@@ -505,13 +521,20 @@ const App = () => {
           </button>
 
           <div className="pt-6">
-            <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2"><History size={14}/> <span>Previous Insights</span></h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 dark:text-zinc-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><History size={14}/> <span>Previous Insights</span></h3>
+                {history.length > 0 && (
+                    <button onClick={handleDeleteHistory} className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-500 flex items-center gap-1 transition-colors">
+                        Clear Log <Trash2 size={12} />
+                    </button>
+                )}
+            </div>
             <div className="space-y-3">
                 {history.length === 0 ? (
                     <div className="text-center py-12 text-gray-400 dark:text-zinc-600 bg-white dark:bg-zinc-900 rounded-[2.5rem] border-2 border-dashed border-gray-100 dark:border-zinc-800"><p className="text-[10px] font-black uppercase tracking-widest">Your log is empty</p></div>
                 ) : (
                     history.map((item) => (
-                        <div key={item.id} onClick={() => handleReviewLesson(item)} className="bg-white dark:bg-zinc-900 p-5 rounded-[1.5rem] border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-center group">
+                        <div key={item.id} onClick={() => handleReviewLesson(item)} className="bg-white dark:bg-zinc-900 p-5 rounded-[1.5rem] border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-center group relative">
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <h4 className="font-serif font-black text-ink dark:text-paper text-lg">{item.theme}</h4>
@@ -519,7 +542,16 @@ const App = () => {
                                 </div>
                                 <p className="text-[10px] text-gray-400 dark:text-zinc-500 font-bold uppercase tracking-wider">{item.date}</p>
                             </div>
-                            <div className="text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"><ChevronRight size={20} /></div>
+                            <div className="flex items-center gap-1">
+                                <button 
+                                    onClick={(e) => handleDeleteSession(e, item.id)}
+                                    className="p-2 text-gray-300 hover:text-red-500 transition-colors rounded-full hover:bg-gray-50 dark:hover:bg-zinc-800 z-10"
+                                    title="Delete Session"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                                <div className="text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"><ChevronRight size={20} /></div>
+                            </div>
                         </div>
                     ))
                 )}

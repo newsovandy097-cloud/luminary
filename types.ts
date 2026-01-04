@@ -12,7 +12,6 @@ export interface Vocabulary {
   emotionalTrigger: string; // The "Vibe" of the word
   etymology: string;
   exampleSentences: string[];
-  visualAnchorUrl?: string; // AI generated visual link
 }
 
 export interface Concept {

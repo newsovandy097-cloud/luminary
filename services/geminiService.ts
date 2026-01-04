@@ -37,35 +37,6 @@ const getAI = () => {
 let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 
-export const generateVisualAnchor = async (mnemonic: string): Promise<string> => {
-  const ai = getAI();
-  const prompt = `A highly detailed, cinematic art piece representing this mental image for memory recall: ${mnemonic}. High contrast, professional digital art style, vibrant colors, clean composition.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: prompt }]
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "1:1"
-        }
-      }
-    });
-
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
-    throw new Error("No image data returned from AI Artist.");
-  } catch (error) {
-    console.error("Image Generation Failed:", error);
-    return ""; // Fallback to no image
-  }
-};
-
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
   const ai = getAI();
   const modelId = "gemini-3-flash-preview";
