@@ -22,6 +22,12 @@
               ink: '#1a1a1a',
               accent: '#d97706',
               surface: '#f3f4f6'
+            },
+            keyframes: {
+              loading: {
+                '0%': { transform: 'translateX(-100%)' },
+                '100%': { transform: 'translateX(300%)' }
+              }
             }
           }
         }
@@ -40,6 +46,10 @@
       }
       .theme-transition {
         transition: all 0.3s ease;
+      }
+      @keyframes loading {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(300%); }
       }
     </style>
     <script type="importmap">

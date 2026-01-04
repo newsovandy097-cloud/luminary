@@ -1,53 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback, Vibe, SkillLevel } from '../types';
-import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target, VolumeX, Briefcase, Heart, Smile, Users, Scale, Home, Baby, Globe, Wand2, Wind } from 'lucide-react';
-import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence, generateSimulationHint } from '../services/geminiService';
-import { audioService } from '../services/audioService';
+import { Vocabulary, Concept, Story, Challenge, Simulation, SimulationFeedback } from '../types';
+import { BookOpen, MessageCircle, Lightbulb, Brain, Volume2, Sparkles, ArrowRight, PlayCircle, Loader2, Send, User, CheckCircle2, ChevronLeft, ChevronRight, PenTool, XCircle, Mic, MicOff, RefreshCw, Layers, Check, History, Target, Zap, Anchor, Image as ImageIcon, Paintbrush, Wand2, Info, MessageSquareQuote } from 'lucide-react';
+import { playTextToSpeech, getSimulationReply, evaluateSimulation, evaluateSentence, generateVisualAnchor, getSimSuggestion, getGrammarHint } from '../services/geminiService';
 
-// --- NEW COACH AVATAR COMPONENT ---
-const CoachAvatar: React.FC<{ vibe: Vibe, mood: 'neutral' | 'happy' | 'thinking' }> = ({ vibe, mood }) => {
-    let Icon = User;
-    let color = "bg-gray-100 text-gray-600";
-
-    switch(vibe) {
-        case 'professional': Icon = Briefcase; color = "bg-blue-100 text-blue-700"; break;
-        case 'social': Icon = Smile; color = "bg-pink-100 text-pink-700"; break;
-        case 'intellectual': Icon = Brain; color = "bg-emerald-100 text-emerald-700"; break;
-        case 'charisma': Icon = Sparkles; color = "bg-purple-100 text-purple-700"; break;
-        case 'leadership': Icon = Users; color = "bg-amber-100 text-amber-700"; break;
-        case 'family': Icon = Home; color = "bg-indigo-100 text-indigo-700"; break;
-        case 'parenting': Icon = Baby; color = "bg-rose-100 text-rose-700"; break;
-        default: Icon = User;
-    }
-
-    return (
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color} shadow-sm border-2 border-white dark:border-zinc-800 relative`}>
-            <Icon size={20} />
-            {mood === 'thinking' && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-bounce"></div>
-            )}
-        </div>
-    );
-};
-
-export const IntroView: React.FC<{ theme: string; level: string; vibe: Vibe; onNext: () => void }> = ({ theme, level, vibe, onNext }) => {
-  useEffect(() => {
-     // Start the ambient ritual audio
-     audioService.startAmbience(vibe);
-  }, [vibe]);
-
-  const [muted, setMuted] = useState(false);
-  const toggleMute = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setMuted(!muted);
-      audioService.toggleMute(!muted);
-  };
-
-  return (
-  <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-6 relative">
-    <button onClick={toggleMute} className="absolute top-0 right-0 p-2 text-gray-400 hover:text-ink dark:hover:text-paper transition-colors">
-        {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-    </button>
+export const IntroView: React.FC<{ theme: string; level: string; onNext: () => void }> = ({ theme, level, onNext }) => (
+  <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in p-6">
     <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-sm font-bold tracking-wide uppercase">
       <Sparkles size={16} />
       {level.toUpperCase()} Session
@@ -71,18 +28,31 @@ export const IntroView: React.FC<{ theme: string; level: string; vibe: Vibe; onN
       </button>
     </div>
   </div>
-  );
-};
+);
 
 export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }> = ({ data, onNext }) => {
   const [index, setIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedAudio, setRecordedAudio] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [images, setImages] = useState<Record<number, string>>({});
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const current = data[index];
+
+  useEffect(() => {
+    // Generate image if not exists for current word
+    const loadVisualAnchor = async () => {
+      if (!images[index] && !isGeneratingImage) {
+        setIsGeneratingImage(true);
+        try {
+          const url = await generateVisualAnchor(current.mnemoLink);
+          setImages(prev => ({ ...prev, [index]: url }));
+        } finally {
+          setIsGeneratingImage(false);
+        }
+      }
+    };
+    loadVisualAnchor();
+  }, [index, current.mnemoLink]);
 
   const handlePlay = async () => {
     if (isPlaying) return;
@@ -90,49 +60,7 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     try { await playTextToSpeech(current.word); } finally { setIsPlaying(false); }
   };
 
-  const handleRecordStart = async () => {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          try {
-              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              mediaRecorderRef.current = new MediaRecorder(stream);
-              chunksRef.current = [];
-              
-              mediaRecorderRef.current.ondataavailable = (e) => chunksRef.current.push(e.data);
-              mediaRecorderRef.current.onstop = async () => {
-                  const blob = new Blob(chunksRef.current, { 'type' : 'audio/ogg; codecs=opus' });
-                  const audioURL = window.URL.createObjectURL(blob);
-                  setRecordedAudio(audioURL);
-                  
-                  // Auto-play sequence: AI then User
-                  setIsPlaying(true);
-                  try {
-                      await playTextToSpeech(current.word);
-                      setTimeout(() => {
-                        const userAudio = new Audio(audioURL);
-                        userAudio.onended = () => setIsPlaying(false);
-                        userAudio.play();
-                      }, 500);
-                  } catch (e) { setIsPlaying(false); }
-              };
-              
-              mediaRecorderRef.current.start();
-              setIsRecording(true);
-          } catch (e) {
-              console.error("Recording error", e);
-              alert("Microphone access denied.");
-          }
-      }
-  };
-
-  const handleRecordStop = () => {
-      if (mediaRecorderRef.current && isRecording) {
-          mediaRecorderRef.current.stop();
-          setIsRecording(false);
-      }
-  };
-
   const nextWord = () => {
-    setRecordedAudio(null);
     if (index < data.length - 1) setIndex(index + 1);
     else onNext();
   };
@@ -152,51 +80,69 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     </div>
     
     <div className="flex-1 overflow-y-auto hide-scrollbar">
-      <div className="flex items-center justify-between mb-4">
-          <h2 className="text-5xl font-serif font-black text-ink dark:text-paper tracking-tight leading-none">{current.word}</h2>
-          <div className="flex gap-2">
-            <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90 flex-shrink-0">
-                {isPlaying ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
-            </button>
-            
-            {/* VOICE MIRROR BUTTON */}
-            <button 
-                onMouseDown={handleRecordStart}
-                onMouseUp={handleRecordStop}
-                onTouchStart={handleRecordStart}
-                onTouchEnd={handleRecordStop}
-                className={`p-4 rounded-2xl transition-all border shadow-sm active:scale-90 flex-shrink-0 ${isRecording ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-gray-50 dark:bg-zinc-800 text-gray-400 dark:text-zinc-500 border-gray-100 dark:border-zinc-700 hover:text-indigo-600'}`}
-            >
-                {isRecording ? <Mic size={24} /> : <MicOff size={24} />}
-            </button>
+      {/* Visual Anchor Art Gallery Style */}
+      <div className="mb-8 relative group">
+          <div className="aspect-square w-full bg-gray-50 dark:bg-zinc-800 rounded-[2.5rem] border-2 border-gray-100 dark:border-zinc-700 overflow-hidden shadow-2xl relative">
+              {images[index] ? (
+                  <img src={images[index]} alt="Visual Anchor" className="w-full h-full object-cover animate-fade-in transition-transform duration-700 group-hover:scale-110" />
+              ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                      <div className="relative">
+                          <Paintbrush size={48} className="text-indigo-200 dark:text-zinc-600 animate-pulse" />
+                          <Sparkles size={24} className="absolute -top-2 -right-2 text-indigo-400 animate-bounce" />
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 dark:text-zinc-500">Neural Painting in progress...</p>
+                      <div className="w-32 h-1 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-600 dark:bg-indigo-400 animate-[loading_2s_ease-in-out_infinite]"></div>
+                      </div>
+                  </div>
+              )}
+              {/* Overlay Label */}
+              <div className="absolute top-4 left-4">
+                  <span className="bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-white/20">
+                      <ImageIcon size={10} /> Visual Anchor
+                  </span>
+              </div>
           </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-col">
+             <div className="flex items-baseline gap-2 mb-2">
+                <h2 className="text-5xl font-serif font-black text-ink dark:text-paper tracking-tight leading-none">{current.word}</h2>
+                <span className="text-xs font-black uppercase tracking-widest text-indigo-500/60 dark:text-indigo-400/60 italic font-serif">({current.partOfSpeech.toLowerCase()})</span>
+             </div>
+             <span className="inline-flex items-center gap-1 px-3 py-1 bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-700 dark:text-fuchsia-300 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit border border-fuchsia-100 dark:border-fuchsia-800/30">
+                <Zap size={10} /> Vibe: {current.emotionalTrigger}
+             </span>
+          </div>
+          <button onClick={handlePlay} disabled={isPlaying} className="p-4 bg-gray-50 dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-zinc-700 rounded-2xl transition-all text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-zinc-700 shadow-sm active:scale-90 flex-shrink-0">
+            {isPlaying ? <Loader2 size={24} className="animate-spin" /> : <Volume2 size={24} />}
+          </button>
       </div>
       
-      {/* Shadowing Instruction */}
-      {recordedAudio ? (
-          <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-xs font-bold text-center animate-fade-in border border-green-100 dark:border-green-900/30">
-              Echo Comparison Complete
-          </div>
-      ) : (
-          <div className="mb-6 p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold text-center animate-fade-in border border-indigo-100 dark:border-indigo-900/30">
-              Hold Mic to "Shadow" (Record & Compare)
-          </div>
-      )}
-
-      <div className="flex items-baseline gap-4 mb-8 flex-wrap">
-        <p className="text-gray-400 dark:text-zinc-500 text-xl font-medium font-serif">/{current.pronunciation}/</p>
-        {current.khmerDefinition && (
-          <p className="text-xl text-indigo-600 dark:text-indigo-400 font-serif">{current.khmerDefinition}</p>
-        )}
+      <div className="flex items-baseline gap-3 mb-6">
+        <p className="text-gray-400 dark:text-zinc-500 text-lg font-medium font-serif">/{current.pronunciation}/</p>
+        <div className="h-4 w-px bg-gray-200 dark:bg-zinc-700"></div>
+        <p className="text-indigo-600 dark:text-indigo-400 text-xl font-bold font-sans">{current.khmerDefinition}</p>
       </div>
 
-      <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-[2rem] border-2 border-indigo-100 dark:border-indigo-900/30 relative mb-8">
-        <div className="absolute -top-3 left-8 bg-indigo-600 text-white px-4 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">
-          Practical Meaning
-        </div>
-        <p className="text-indigo-950 dark:text-indigo-200 text-xl font-bold leading-relaxed pt-2">
+      <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-[2rem] border-2 border-indigo-100 dark:border-indigo-900/30 relative mb-6 shadow-sm">
+        <p className="text-indigo-950 dark:text-indigo-200 text-xl font-bold leading-relaxed">
           "{current.simpleDefinition}"
         </p>
+      </div>
+
+      {/* Brain Glue Section */}
+      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-[2px] rounded-2xl mb-6 shadow-lg">
+         <div className="bg-white dark:bg-zinc-900 p-5 rounded-[calc(1rem-1px)]">
+            <div className="flex items-center gap-2 mb-2 text-violet-600 dark:text-violet-400 font-black text-[10px] uppercase tracking-widest">
+                <Anchor size={14} /> <span>Brain Glue (Mnemonic)</span>
+            </div>
+            <p className="text-base font-serif italic font-medium text-gray-800 dark:text-gray-200">
+                "{current.mnemoLink}"
+            </p>
+         </div>
       </div>
 
       <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm">
@@ -236,22 +182,23 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
     const [correctOrder, setCorrectOrder] = useState<string[]>([]);
     const [puzzleSolved, setPuzzleSolved] = useState(false);
     const [isWrong, setIsWrong] = useState(false);
+    
+    // Hint State
+    const [hintText, setHintText] = useState<string | null>(null);
+    const [isGettingHint, setIsGettingHint] = useState(false);
 
     const current = words[wordIdx];
 
     useEffect(() => {
-        // Init Puzzle
         const sentence = current.exampleSentences && current.exampleSentences.length > 0 
             ? current.exampleSentences[0] 
             : (current as any).exampleSentence;
         
-        // Remove punctuation for easier matching, keep for display? Simpler to just split by space for now.
         const cleanSentence = sentence.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
-        const parts = cleanSentence.split(/\s+/);
+        const parts = cleanSentence.split(/\s+/).filter(Boolean);
         setCorrectOrder(parts);
 
         const items = parts.map((w: string, i: number) => ({ id: i, text: w }));
-        // Shuffle
         for (let i = items.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [items[i], items[j]] = [items[j], items[i]];
@@ -260,16 +207,40 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
         setSelectedWords([]);
         setPuzzleSolved(false);
         setIsWrong(false);
+        setHintText(null);
     }, [wordIdx, current]);
 
     const handleWordClick = (item: {id: number, text: string}, fromScramble: boolean) => {
         setIsWrong(false);
+        setHintText(null);
         if (fromScramble) {
             setScrambledWords(prev => prev.filter(w => w.id !== item.id));
             setSelectedWords(prev => [...prev, item]);
         } else {
             setSelectedWords(prev => prev.filter(w => w.id !== item.id));
             setScrambledWords(prev => [...prev, item]);
+        }
+    };
+
+    // Native Drag and Drop Handlers
+    const handleDragStart = (e: React.DragEvent, item: {id: number, text: string}) => {
+        e.dataTransfer.setData("item", JSON.stringify(item));
+        e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault(); // Allow drop
+        e.dataTransfer.dropEffect = "move";
+    };
+
+    const handleDropOnZone = (e: React.DragEvent) => {
+        e.preventDefault();
+        const itemStr = e.dataTransfer.getData("item");
+        if (!itemStr) return;
+        const item = JSON.parse(itemStr);
+        // Only if it was from scrambled words
+        if (scrambledWords.find(w => w.id === item.id)) {
+            handleWordClick(item, true);
         }
     };
 
@@ -286,6 +257,19 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
         }
     };
 
+    const handleHint = async () => {
+        if (isGettingHint || puzzleSolved) return;
+        setIsGettingHint(true);
+        try {
+            // Call Gemini for a smart grammar hint
+            const fragmentHistory = selectedWords.map(w => w.text);
+            const smartHint = await getGrammarHint(current.word, current.simpleDefinition, fragmentHistory, correctOrder);
+            setHintText(smartHint);
+        } finally {
+            setIsGettingHint(false);
+        }
+    };
+
     const handleNext = () => {
         if (wordIdx < words.length - 1) setWordIdx(wordIdx + 1);
         else onNext();
@@ -298,45 +282,67 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
                     <Layers size={14} />
                     <span>Syntax Puzzle {wordIdx + 1} of {words.length}</span>
                 </div>
-                <button 
-                  onClick={onSkip}
-                  className="text-[10px] font-black uppercase text-gray-400 dark:text-zinc-500 hover:text-ink dark:hover:text-paper transition-colors flex items-center gap-1"
-                >
-                  Skip <XCircle size={12} />
-                </button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={handleHint}
+                    disabled={isGettingHint || puzzleSolved}
+                    className="text-[10px] font-black uppercase text-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 disabled:opacity-30"
+                  >
+                    {isGettingHint ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    Hint
+                  </button>
+                  <button 
+                    onClick={onSkip}
+                    className="text-[10px] font-black uppercase text-gray-400 dark:text-zinc-500 hover:text-ink dark:hover:text-paper transition-colors flex items-center gap-1"
+                  >
+                    Skip <XCircle size={12} />
+                  </button>
+                </div>
             </div>
 
             <div className="flex-1 flex flex-col justify-center">
-                <div className="text-center mb-8">
+                <div className="text-center mb-6">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 mb-2">Rebuild the Sentence</p>
                     <h2 className="text-3xl font-serif font-black text-ink dark:text-paper mb-2">{current.word}</h2>
-                    <div className="space-y-1">
-                        <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">"{current.simpleDefinition}"</p>
-                        {current.khmerDefinition && <p className="text-sm text-gray-500 dark:text-zinc-400 font-serif">{current.khmerDefinition}</p>}
-                    </div>
+                    <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">"{current.simpleDefinition}"</p>
                 </div>
 
                 {/* Drop Zone */}
-                <div className={`min-h-[120px] bg-white dark:bg-zinc-800 rounded-3xl border-2 border-dashed p-4 flex flex-wrap content-start gap-2 mb-6 transition-colors duration-300 ${puzzleSolved ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : isWrong ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-zinc-700'}`}>
+                <div 
+                    onDragOver={handleDragOver}
+                    onDrop={handleDropOnZone}
+                    className={`min-h-[140px] bg-white dark:bg-zinc-800 rounded-3xl border-2 border-dashed p-5 flex flex-wrap content-start gap-2 mb-4 transition-all duration-300 relative ${puzzleSolved ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : isWrong ? 'border-red-400 bg-red-50 dark:bg-red-900/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700'}`}
+                >
                     {selectedWords.length === 0 && !puzzleSolved && (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-zinc-600 text-sm font-black uppercase tracking-widest pointer-events-none">
-                            Tap words below
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-zinc-600 text-xs font-black uppercase tracking-widest pointer-events-none text-center space-y-2">
+                            <span>Drag words here</span>
+                            <span className="opacity-40">or click to pick</span>
                         </div>
                     )}
                     {selectedWords.map((item) => (
                         <button 
                             key={item.id} 
                             onClick={() => !puzzleSolved && handleWordClick(item, false)}
-                            className="bg-ink dark:bg-paper text-white dark:text-ink px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-md animate-fade-in hover:scale-105 active:scale-95 transition-all"
+                            className="bg-ink dark:bg-paper text-white dark:text-ink px-4 py-2.5 rounded-xl text-lg font-serif font-medium shadow-md animate-fade-in hover:scale-105 active:scale-95 transition-all"
                         >
                             {item.text}
                         </button>
                     ))}
                     {puzzleSolved && (
-                        <div className="w-full flex items-center justify-center mt-2 text-green-600 dark:text-green-400 font-black uppercase tracking-widest text-xs gap-2 animate-bounce">
+                        <div className="w-full flex items-center justify-center mt-3 text-green-600 dark:text-green-400 font-black uppercase tracking-widest text-xs gap-2 animate-bounce">
                             <CheckCircle2 size={16} /> Perfect Syntax
                         </div>
                     )}
+                </div>
+
+                {/* Hint Text Area */}
+                <div className={`transition-all duration-500 overflow-hidden ${hintText ? 'max-h-24 opacity-100 mb-6' : 'max-h-0 opacity-0 mb-0'}`}>
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 p-3 rounded-2xl flex gap-3 items-center">
+                        <Info size={16} className="text-amber-500 shrink-0" />
+                        <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 italic leading-snug">
+                            {hintText}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Scramble Pool */}
@@ -344,8 +350,10 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
                     {scrambledWords.map((item) => (
                         <button 
                             key={item.id} 
+                            draggable={!puzzleSolved}
+                            onDragStart={(e) => handleDragStart(e, item)}
                             onClick={() => handleWordClick(item, true)}
-                            className="bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-xl text-lg font-serif font-medium shadow-sm hover:bg-gray-200 dark:hover:bg-zinc-600 active:scale-95 transition-all"
+                            className="bg-gray-100 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 rounded-xl text-lg font-serif font-medium shadow-sm hover:bg-gray-200 dark:hover:bg-zinc-600 active:scale-95 transition-all cursor-grab active:cursor-grabbing border border-transparent hover:border-gray-200 dark:hover:border-zinc-500"
                         >
                             {item.text}
                         </button>
@@ -358,12 +366,12 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
                     <button 
                         onClick={handleCheck}
                         disabled={selectedWords.length === 0}
-                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-ink dark:bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest hover:bg-fuchsia-600 dark:hover:bg-fuchsia-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-2"
                     >
                         Check Syntax
                     </button>
                 ) : (
-                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in flex items-center justify-center gap-2">
+                    <button onClick={handleNext} className="w-full bg-fuchsia-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl animate-fade-in flex items-center justify-center gap-2 transform hover:translate-y-[-2px] transition-all">
                         {wordIdx < words.length - 1 ? 'Next Word' : 'Go to Core Concept'} <ArrowRight size={20} />
                     </button>
                 )}
@@ -477,8 +485,11 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
                             
                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-y-auto hide-scrollbar z-10">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 opacity-70">The Power Word Is</p>
-                                <h2 className="text-3xl sm:text-5xl font-serif font-black mb-1 tracking-tight break-words max-w-full leading-none">{current.word}</h2>
-                                {current.khmerDefinition && <p className="text-lg text-indigo-200 font-serif mb-3">{current.khmerDefinition}</p>}
+                                <div className="flex items-baseline gap-2 mb-3 max-w-full justify-center">
+                                    <h2 className="text-3xl sm:text-5xl font-serif font-black tracking-tight break-words leading-none">{current.word}</h2>
+                                    <span className="text-[10px] sm:text-xs font-serif italic text-indigo-300">({current.partOfSpeech.toLowerCase()})</span>
+                                </div>
+                                <p className="text-indigo-200 text-lg font-bold mb-4 font-sans">{current.khmerDefinition}</p>
                                 <div className="flex items-center gap-3 mb-4 bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm shrink-0">
                                     <p className="text-base sm:text-lg opacity-90 font-serif italic">/{current.pronunciation}/</p>
                                     <button 
@@ -525,7 +536,7 @@ export const ReviewVaultView: React.FC<{ words: Vocabulary[], onClose: () => voi
 };
 
 export const ConceptView: React.FC<{ data: Concept }> = ({ data }) => (
-  <div className="space-y-6 h-full flex flex-col animate-fade-in">
+  <div className="space-y-6 h-full flex flex-col animate-fade-in overflow-y-auto hide-scrollbar">
     <div className="flex items-center space-x-2 text-amber-600 dark:text-amber-400 font-black uppercase tracking-[0.2em] text-[10px]">
       <Lightbulb size={14} />
       <span>Big Idea Strategy</span>
@@ -541,7 +552,7 @@ export const ConceptView: React.FC<{ data: Concept }> = ({ data }) => (
       </p>
     </div>
 
-    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-8 rounded-[2.5rem] border border-amber-100 dark:border-amber-900/30 flex-1 shadow-inner">
+    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-8 rounded-[2.5rem] border border-amber-100 dark:border-amber-900/30 shadow-inner">
       <div className="flex flex-col h-full justify-center space-y-4">
         <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-black text-[10px] uppercase tracking-widest">
             <Sparkles size={18} />
@@ -553,87 +564,34 @@ export const ConceptView: React.FC<{ data: Concept }> = ({ data }) => (
       </div>
     </div>
 
-    <div className="bg-white dark:bg-zinc-800 p-5 rounded-2xl border border-gray-100 dark:border-zinc-700 flex items-center gap-4 shadow-sm">
-        <div className="bg-gray-50 dark:bg-zinc-700 p-3 rounded-xl text-gray-500 dark:text-zinc-400">
-            <MessageCircle size={20} />
+    <div className="space-y-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-500 px-1">
+            <MessageSquareQuote size={14} />
+            <span>Apply Now: 3 Practice Hooks</span>
         </div>
-        <div className="text-sm">
-            <span className="block font-black text-[10px] text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">Practice Hook:</span>
-            <span className="text-ink dark:text-paper font-bold italic">"{data.conversationStarter}"</span>
+        <div className="grid gap-3">
+            {data.conversationStarters.map((starter, idx) => (
+                <div key={idx} className="bg-white dark:bg-zinc-800 p-4 rounded-2xl border border-gray-100 dark:border-zinc-700 flex items-center gap-4 shadow-sm group hover:border-amber-200 dark:hover:border-amber-900/50 transition-colors">
+                    <div className="bg-gray-50 dark:bg-zinc-700 p-2.5 rounded-xl text-gray-500 dark:text-zinc-400 group-hover:bg-amber-50 dark:group-hover:bg-amber-900/20 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                        <span className="text-[10px] font-black">{idx + 1}</span>
+                    </div>
+                    <span className="text-ink dark:text-paper font-bold italic text-sm leading-relaxed">"{starter}"</span>
+                </div>
+            ))}
         </div>
     </div>
   </div>
 );
 
-// --- NEW BREATHING VIEW ---
-export const BreathingView: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
-    const [text, setText] = useState("Inhale Confidence");
-    const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
-    
-    useEffect(() => {
-        let cycle = 0;
-        const interval = setInterval(() => {
-            // Cycle: In (4s) -> Hold (2s) -> Out (4s) -> Hold (2s)
-            // Simplified: In (4s) -> Out (4s)
-            
-            if (cycle >= 2) { // 3 full cycles approx
-                clearInterval(interval);
-                onComplete();
-                return;
-            }
-
-            setPhase('in');
-            setText("Inhale Confidence...");
-            
-            setTimeout(() => {
-                setPhase('out');
-                setText("Exhale Doubt...");
-            }, 4000);
-
-            cycle++;
-        }, 8000); // 8s total cycle
-
-        // Initial Start
-        setPhase('in');
-        setText("Inhale Confidence...");
-        setTimeout(() => {
-             setPhase('out');
-             setText("Exhale Doubt...");
-        }, 4000);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    return (
-        <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in space-y-8">
-            <div className="text-indigo-500 dark:text-indigo-400 font-black uppercase tracking-[0.3em] text-[10px] flex items-center gap-2">
-                <Wind size={14} /> Physiological Prime
-            </div>
-            
-            <div className="relative flex items-center justify-center w-64 h-64">
-                <div className={`absolute border-4 border-indigo-200 dark:border-indigo-900 rounded-full transition-all duration-[4000ms] ease-in-out ${phase === 'in' ? 'w-64 h-64 opacity-100' : 'w-20 h-20 opacity-50'}`}></div>
-                <div className={`absolute bg-indigo-500/20 dark:bg-indigo-400/20 rounded-full blur-xl transition-all duration-[4000ms] ease-in-out ${phase === 'in' ? 'w-48 h-48' : 'w-10 h-10'}`}></div>
-                <div className="relative z-10 font-serif font-black text-2xl text-ink dark:text-paper transition-opacity duration-1000">
-                    {text}
-                </div>
-            </div>
-
-            <button onClick={onComplete} className="text-gray-400 hover:text-indigo-500 text-xs font-bold uppercase tracking-widest mt-8">
-                Skip Breathing
-            </button>
-        </div>
-    );
-};
-
-export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: SkillLevel; onComplete: (history: { role: string; text: string }[], feedback: SimulationFeedback) => void; onSkip: () => void }> = ({ data, vibe, level, onComplete, onSkip }) => {
+export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: { role: string; text: string }[], feedback: SimulationFeedback) => void; onSkip: () => void }> = ({ data, onComplete, onSkip }) => {
   const [messages, setMessages] = useState<{ role: 'model' | 'user'; text: string }[]>([
     { role: 'model', text: data.openingLine }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isGettingHint, setIsGettingHint] = useState(false);
   const [feedback, setFeedback] = useState<SimulationFeedback | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [isHinting, setIsHinting] = useState(false);
   
   // Voice Input State
   const [isListening, setIsListening] = useState(false);
@@ -673,6 +631,19 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
     }
   };
 
+  const handleGetHint = async () => {
+    if (isGettingHint || isTyping) return;
+    setIsGettingHint(true);
+    try {
+      const hint = await getSimSuggestion(messages, { setting: data.setting, role: data.role, objective: data.objective });
+      setInput(hint);
+    } catch (e) {
+      console.error("Hint generation failed", e);
+    } finally {
+      setIsGettingHint(false);
+    }
+  };
+
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => scrollToBottom(), [messages, feedback]);
 
@@ -695,15 +666,6 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
           setFeedback(result);
       } catch (e) { console.error(e); } finally { setIsEvaluating(false); }
   };
-
-  const handleMagicHint = async () => {
-      if (isHinting) return;
-      setIsHinting(true);
-      try {
-          const hint = await generateSimulationHint(messages, { setting: data.setting, role: data.role }, level);
-          setInput(hint);
-      } catch (e) { console.error(e); } finally { setIsHinting(false); }
-  }
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
@@ -731,9 +693,8 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
 
       <div className="flex-1 overflow-y-auto space-y-4 p-2 mb-4 pr-2 scroll-smooth hide-scrollbar">
         {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'model' && <CoachAvatar vibe={vibe} mood={feedback ? 'happy' : 'neutral'} />}
-            <div className={`max-w-[75%] p-4 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] p-4 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${
                 msg.role === 'user' ? 'bg-ink dark:bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800 text-gray-800 dark:text-paper rounded-bl-none border border-gray-100 dark:border-zinc-700'
             }`}>
               {msg.text}
@@ -741,8 +702,7 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
           </div>
         ))}
         {isTyping && (
-           <div className="flex justify-start gap-3">
-             <CoachAvatar vibe={vibe} mood="thinking" />
+           <div className="flex justify-start">
              <div className="bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 p-4 rounded-2xl rounded-bl-none flex space-x-1 shadow-sm">
                <div className="w-1.5 h-1.5 bg-gray-300 dark:bg-zinc-600 rounded-full animate-bounce"></div>
                <div className="w-1.5 h-1.5 bg-gray-300 dark:bg-zinc-600 rounded-full animate-bounce delay-100"></div>
@@ -791,15 +751,6 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
                 </button>
              )}
              <div className="relative flex gap-2">
-                {/* MAGIC WAND HINT */}
-                <button 
-                    onClick={handleMagicHint}
-                    disabled={isHinting}
-                    className="p-4 bg-indigo-50 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 rounded-[1.5rem] shadow-sm active:scale-95 transition-all border border-indigo-100 dark:border-zinc-700"
-                >
-                    {isHinting ? <Loader2 size={20} className="animate-spin" /> : <Wand2 size={20} />}
-                </button>
-
                 <div className="relative flex-1">
                     <input 
                         type="text" 
@@ -807,15 +758,25 @@ export const SimulatorView: React.FC<{ data: Simulation; vibe: Vibe; level: Skil
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder={isListening ? "Listening..." : "Respond naturally..."}
-                        className={`w-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-[1.5rem] py-5 px-6 pr-16 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all dark:text-paper ${isListening ? 'ring-2 ring-red-400 animate-pulse' : ''}`}
+                        className={`w-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-[1.5rem] py-5 px-6 pr-16 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium transition-all text-gray-900 dark:text-paper ${isListening ? 'ring-2 ring-red-400 animate-pulse' : ''}`}
                     />
-                    <button 
-                        onClick={handleSend}
-                        disabled={!input.trim() || isTyping}
-                        className="absolute right-3 top-3 p-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-400 shadow-md active:scale-90 transition-all"
-                    >
-                        <Send size={18} />
-                    </button>
+                    <div className="absolute right-2 top-2 flex gap-1">
+                      <button 
+                          onClick={handleGetHint}
+                          disabled={isGettingHint || isTyping}
+                          title="Get AI Suggestion"
+                          className="p-3 bg-indigo-50 dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-zinc-600 active:scale-90 transition-all shadow-sm flex items-center justify-center disabled:opacity-50"
+                      >
+                          {isGettingHint ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
+                      </button>
+                      <button 
+                          onClick={handleSend}
+                          disabled={!input.trim() || isTyping}
+                          className="p-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-400 shadow-md active:scale-90 transition-all"
+                      >
+                          <Send size={18} />
+                      </button>
+                    </div>
                 </div>
                 <button 
                     onClick={toggleListening}
@@ -872,13 +833,7 @@ export const StoryView: React.FC<{ data: Story }> = ({ data }) => {
   );
 };
 
-export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => {
-    useEffect(() => {
-        // Stop the ambient audio when the challenge is shown (focus mode)
-        audioService.stopAmbience();
-    }, []);
-
-    return (
+export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
   <div className="flex flex-col h-full justify-between animate-fade-in">
     <div className="space-y-8">
       <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-black uppercase tracking-[0.2em] text-[10px]">
@@ -909,9 +864,8 @@ export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }
       onClick={onComplete}
       className="w-full bg-ink dark:bg-purple-600 text-white py-6 rounded-[1.5rem] font-black uppercase tracking-[0.2em] hover:bg-purple-600 dark:hover:bg-purple-500 transition-all mt-8 flex items-center justify-center gap-4 shadow-2xl transform hover:-translate-y-1 active:scale-95"
     >
-      Finish & Unlock Artifact
+      Finish Day & Save
       <CheckCircle2 size={24} />
     </button>
   </div>
-    );
-};
+);

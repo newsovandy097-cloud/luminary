@@ -3,12 +3,16 @@ export type SkillLevel = 'noob' | 'beginner' | 'intermediate' | 'advanced' | 'ma
 
 export interface Vocabulary {
   word: string;
+  partOfSpeech: string; // e.g., Noun, Verb, Adjective
   pronunciation: string;
   definition: string;
   simpleDefinition: string; // "In plain English"
   khmerDefinition: string; // Khmer translation
+  mnemoLink: string; // "Brain Glue" - a memory hook
+  emotionalTrigger: string; // The "Vibe" of the word
   etymology: string;
-  exampleSentences: string[]; // Changed to array for 3 examples
+  exampleSentences: string[];
+  visualAnchorUrl?: string; // AI generated visual link
 }
 
 export interface Concept {
@@ -16,7 +20,7 @@ export interface Concept {
   field: string;
   explanation: string;
   analogy: string; // "Think of it like..."
-  conversationStarter: string;
+  conversationStarters: string[]; // Array of 3 hooks
 }
 
 export interface Simulation {
@@ -57,20 +61,10 @@ export interface DailyLesson {
   challenge: Challenge;
 }
 
-export interface CollectedCard {
-  id: string;
-  timestamp: number;
-  theme: string;
-  vibe: Vibe;
-  title: string; // Usually the Concept Title
-  rarity: SkillLevel;
-}
-
 export enum AppState {
   DASHBOARD = 'DASHBOARD',
   LOADING = 'LOADING',
   LESSON = 'LESSON',
   COMPLETED = 'COMPLETED',
-  ERROR = 'ERROR',
-  COLLECTION = 'COLLECTION'
+  ERROR = 'ERROR'
 }

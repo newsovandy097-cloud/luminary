@@ -1,30 +1,44 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to get or create AI instance securely
+// Helper to get or create AI instance securely using the provided environment variable
 const getAI = () => {
-  let key = '';
-  
-  // 1. Check standard process.env (Node/CRA/Next.js)
-  if (typeof process !== 'undefined' && process.env) {
-    key = process.env.API_KEY || process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || '';
-  }
-
-  // 2. Check import.meta.env (Vite standard)
-  if (!key && typeof import.meta !== 'undefined' && (import.meta as any).env) {
-    key = (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY || '';
-  }
-
-  if (!key) {
-    throw new Error("Authentication Error: API Key is missing. Please set VITE_API_KEY in your Vercel Environment Variables.");
-  }
-
-  return new GoogleGenAI({ apiKey: key });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Audio Context & Cache Singleton
 let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
+
+export const generateVisualAnchor = async (mnemonic: string): Promise<string> => {
+  const ai = getAI();
+  const prompt = `A highly detailed, cinematic art piece representing this mental image for memory recall: ${mnemonic}. High contrast, professional digital art style, vibrant colors, clean composition.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [{ text: prompt }]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "1:1"
+        }
+      }
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    throw new Error("No image data returned from AI Artist.");
+  } catch (error) {
+    console.error("Image Generation Failed:", error);
+    return ""; // Fallback to no image
+  }
+};
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
   const ai = getAI();
@@ -61,7 +75,13 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     Vibe: ${vibeInstructions[vibe]}
     Theme: ${themeContext}
     Goal: Micro-learning session JSON.
-    Requirement: Provide exactly 3 distinct example sentences for each vocabulary word. Include the Khmer translation/definition for each word.
+    Requirement: 
+    1. Provide exactly 3 distinct example sentences for each vocabulary word.
+    2. Provide 'khmerDefinition': accurate translation in Khmer language.
+    3. Provide 'mnemoLink': A creative, vivid, or funny mental image/association to help remember the word forever (Brain Glue).
+    4. Provide 'emotionalTrigger': 1-2 words describing the feeling/vibe of using this word.
+    5. Provide 'partOfSpeech': The grammatical category (e.g., Noun, Verb, Adjective).
+    6. Provide exactly 3 'conversationStarters' for the concept.
   `;
 
   try {
@@ -80,10 +100,13 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                 type: Type.OBJECT,
                 properties: {
                   word: { type: Type.STRING },
+                  partOfSpeech: { type: Type.STRING },
                   pronunciation: { type: Type.STRING },
                   definition: { type: Type.STRING },
                   simpleDefinition: { type: Type.STRING },
                   khmerDefinition: { type: Type.STRING },
+                  mnemoLink: { type: Type.STRING },
+                  emotionalTrigger: { type: Type.STRING },
                   etymology: { type: Type.STRING },
                   exampleSentences: { 
                     type: Type.ARRAY,
@@ -91,7 +114,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                     description: "3 distinct example sentences using the word."
                   },
                 },
-                required: ["word", "pronunciation", "definition", "simpleDefinition", "khmerDefinition", "etymology", "exampleSentences"]
+                required: ["word", "partOfSpeech", "pronunciation", "definition", "simpleDefinition", "khmerDefinition", "mnemoLink", "emotionalTrigger", "etymology", "exampleSentences"]
               }
             },
             concept: {
@@ -101,9 +124,13 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
                 field: { type: Type.STRING },
                 explanation: { type: Type.STRING },
                 analogy: { type: Type.STRING },
-                conversationStarter: { type: Type.STRING },
+                conversationStarters: { 
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 diverse and engaging hooks to start a conversation about this concept."
+                },
               },
-              required: ["title", "field", "explanation", "analogy", "conversationStarter"]
+              required: ["title", "field", "explanation", "analogy", "conversationStarters"]
             },
             simulation: {
               type: Type.OBJECT,
@@ -179,33 +206,62 @@ export const getSimulationReply = async (
   }
 };
 
-export const generateSimulationHint = async (
-    history: { role: string; text: string }[],
-    scenario: { setting: string; role: string },
-    level: string
+export const getSimSuggestion = async (
+  history: { role: string; text: string }[], 
+  scenario: { setting: string; role: string; objective: string }
 ): Promise<string> => {
-    const ai = getAI();
-    const modelId = "gemini-3-flash-preview";
-    const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
+  const ai = getAI();
+  const modelId = "gemini-3-flash-preview";
+  const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
+  
+  const prompt = `
+    Role: Charismatic communication coach.
+    Setting: ${scenario.setting}
+    Scenario Role: ${scenario.role}
+    Objective: ${scenario.objective}
+    Conversation so far:
+    ${conversation}
 
-    const prompt = `
-        Context: ${scenario.setting}. Role: ${scenario.role}.
-        History: ${conversation}
-        Task: Suggest a single, short, confident response for the User.
-        Level: ${level}.
-        Output: Just the response text, nothing else.
-    `;
+    TASK: Suggest exactly ONE short, natural, and high-impact response for the User to say next to progress towards the objective gracefully. 
+    Output ONLY the suggestion text, no labels, no quotes.
+  `;
 
-    try {
-        const response = await ai.models.generateContent({
-            model: modelId,
-            contents: prompt,
-        });
-        return response.text?.trim() || "";
-    } catch (e) {
-        return "I'm not sure what to say.";
-    }
-}
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+    });
+    return response.text?.replace(/^["']|["']$/g, '').trim() || "Try asking for their thoughts on the matter.";
+  } catch (e: any) {
+    return "I'm having trouble thinking of a suggestion right now.";
+  }
+};
+
+export const getGrammarHint = async (word: string, definition: string, fragments: string[], correctSequence: string[]): Promise<string> => {
+  const ai = getAI();
+  const modelId = "gemini-3-flash-preview";
+  
+  const prompt = `
+    Task: Language Tutor. 
+    Current Word: "${word}" (${definition})
+    Fragments provided: ${fragments.join(', ')}
+    Target sentence: ${correctSequence.join(' ')}
+    
+    Instruction: Give the user a tiny, helpful grammatical hint to help them figure out the next word in the sequence. 
+    Don't give them the answer directly if possible. Mention things like "Start with the subject" or "The adjective usually comes before...". 
+    Keep it under 15 words.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+    });
+    return response.text || "Try to find the main subject first.";
+  } catch (e) {
+    return "Think about the structure of a standard sentence: Subject + Verb + Object.";
+  }
+};
 
 export const evaluateSimulation = async (
     history: { role: string; text: string }[],
