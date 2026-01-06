@@ -2,12 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Luminary - Daily Micro-learning</title>
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#1a1a1a" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&family=Kantumruy+Pro:wght@300;400;600;700&family=Koulen&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -16,17 +18,55 @@
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
               serif: ['Playfair Display', 'serif'],
+              khmer: ['Kantumruy Pro', 'sans-serif'],
+              khmerDisplay: ['Koulen', 'serif'],
             },
             colors: {
-              paper: '#fdfbf7',
-              ink: '#1a1a1a',
-              accent: '#d97706',
-              surface: '#f3f4f6'
+              paper: '#FAFAFA',
+              ink: '#09090B', // Zinc-950
+              surface: '#F4F4F5', // Zinc-100
+              surfaceDark: '#18181B' // Zinc-900
+            },
+            boxShadow: {
+              '3d': '0 10px 40px -10px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.1) inset',
+              '3d-dark': '0 10px 40px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset',
+              'slab': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.5)',
+              'slab-dark': '0 4px 6px -1px rgba(0, 0, 0, 0.3), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
+              'pressed': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              'scale-up': 'scaleUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              'float': 'float 6s ease-in-out infinite',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'slide-in-right': 'slideInRight 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              'pop-in': 'popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+              'particle': 'particle 0.8s ease-out forwards',
             },
             keyframes: {
-              loading: {
-                '0%': { transform: 'translateX(-100%)' },
-                '100%': { transform: 'translateX(300%)' }
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+              },
+              scaleUp: {
+                '0%': { transform: 'scale(0.9)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-6px)' },
+              },
+              slideInRight: {
+                '0%': { opacity: '0', transform: 'translateX(30px) scale(0.95) rotateY(-5deg)' },
+                '100%': { opacity: '1', transform: 'translateX(0) scale(1) rotateY(0)' },
+              },
+              popIn: {
+                '0%': { opacity: '0', transform: 'scale(0.5) translateY(10px)' },
+                '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+              },
+              particle: {
+                '0%': { transform: 'translate(0, 0) scale(1)', opacity: '1' },
+                '100%': { transform: 'translate(var(--tx), var(--ty)) scale(0)', opacity: '0' },
               }
             }
           }
@@ -35,7 +75,21 @@
     </script>
     <style>
       body {
-        transition: background-color 0.3s ease, color 0.3s ease;
+        transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        -webkit-tap-highlight-color: transparent;
+        overflow-x: hidden;
+      }
+      /* Noise Texture */
+      .bg-noise {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
       }
       .hide-scrollbar::-webkit-scrollbar {
         display: none;
@@ -44,12 +98,22 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
-      .theme-transition {
-        transition: all 0.3s ease;
+      /* 3D Perspective Container */
+      .perspective-container {
+        perspective: 1200px;
       }
-      @keyframes loading {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(300%); }
+      .preserve-3d {
+        transform-style: preserve-3d;
+      }
+      .backface-hidden {
+        backface-visibility: hidden;
+      }
+      .rotate-y-180 {
+        transform: rotateY(180deg);
+      }
+      /* Proper Khmer line height adjustment */
+      .font-khmer {
+        line-height: 1.6;
       }
     </style>
     <script type="importmap">
@@ -66,9 +130,9 @@
     }
     </script>
   </head>
-  <body class="bg-surface dark:bg-ink">
-    <div id="root"></div>
-    <!-- Load the main application entry point -->
+  <body class="bg-surface dark:bg-[#0a0a0a] text-ink dark:text-white antialiased selection:bg-indigo-500 selection:text-white">
+    <div class="bg-noise"></div>
+    <div id="root" class="relative z-10"></div>
     <script type="module" src="index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {

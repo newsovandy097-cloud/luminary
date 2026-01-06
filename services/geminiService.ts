@@ -79,6 +79,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     4. Provide 'emotionalTrigger': 1-2 words describing the feeling/vibe of using this word.
     5. Provide 'partOfSpeech': The grammatical category (e.g., Noun, Verb, Adjective).
     6. Provide exactly 3 'conversationStarters' for the concept.
+    7. For the 'story', create a gripping, high-interest micro-fiction (max 100 words) with a twist or strong emotional hook that illustrates the theme. Make it engaging and memorable, not just educational.
   `;
 
   try {
