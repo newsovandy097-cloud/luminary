@@ -1,14 +1,10 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to get or create AI instance securely using the provided environment variable
-// strictly following guidelines to use process.env.API_KEY directly.
+// Helper to get or create AI instance.
+// We strictly follow the guideline to use process.env.API_KEY directly.
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey.includes("API_KEY")) {
-    throw new Error("Invalid API Key. Please set the API_KEY environment variable in Vercel.");
-  }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Audio Context & Cache Singleton
@@ -156,8 +152,9 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     }
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
-    if (error.status === 403 || (error.message && error.message.includes("403"))) {
-       throw new Error("Access Denied (403). Please verify your API Key is valid and has access to Gemini 1.5 Flash.");
+    // Catch specific API key errors from the SDK
+    if (error.message?.includes("API key") || error.status === 403 || error.status === 400) {
+       throw new Error("API Key Error. Please ensure the 'API_KEY' environment variable is correctly set in your Vercel Project Settings.");
     }
     throw new Error(error.message || "Failed to generate lesson content.");
   }
