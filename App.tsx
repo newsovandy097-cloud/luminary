@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Play, Settings2, BarChart3, Laugh, Handshake, HeartHandshake, Lightbulb, Radio } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Play, Settings2, BarChart3, Laugh, Handshake, HeartHandshake, Lightbulb, Radio, BrainCircuit } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
-import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
+import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel, SkillNode } from './types';
 import { ProgressBar } from './components/ProgressBar';
 import { IntroView, VocabularyView, ConceptView, StoryView, ChallengeView, SimulatorView, VocabularyPracticeView, ReviewVaultView, ScrambleText } from './components/LessonViews';
+import { SkillTreeView, SKILL_TREE_DATA } from './components/SkillTreeView';
 
 const App = () => {
   const [appState, setAppState] = useState<AppState>(AppState.DASHBOARD);
@@ -18,6 +20,12 @@ const App = () => {
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showVault, setShowVault] = useState(false);
+  const [showSkillTree, setShowSkillTree] = useState(false);
+
+  // Skill Tree State
+  const [unlockedNodes, setUnlockedNodes] = useState<string[]>(['core_1']);
+  const [spentXp, setSpentXp] = useState(0);
+  const [activeNodeId, setActiveNodeId] = useState<string>('core_1');
 
   // Dashboard Tips State
   const [tipIndex, setTipIndex] = useState(0);
@@ -31,12 +39,12 @@ const App = () => {
   const [currentFeedback, setCurrentFeedback] = useState<SimulationFeedback | null>(null);
 
   // Dashboard & Profile State
-  const [selectedVibe, setSelectedVibe] = useState<Vibe>('social');
-  const [selectedLevel, setSelectedLevel] = useState<SkillLevel>('noob');
-  const [selectedTheme, setSelectedTheme] = useState<string>('General');
   const [showProfile, setShowProfile] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   
+  // NOTE: selectedVibe and selectedLevel are now derived from the Active Skill Node
+  const [selectedTheme, setSelectedTheme] = useState<string>('General');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tips = [
@@ -49,19 +57,6 @@ const App = () => {
     "Listen to understand, not just to reply.",
     "Palms up gestures signal openness and honesty.",
     "Maintain eye contact for 3-5 seconds to build connection."
-  ];
-
-  const vibeOptions: { id: Vibe; icon: any; label: string }[] = [
-    { id: 'social', icon: PartyPopper, label: 'Social' },
-    { id: 'professional', icon: Briefcase, label: 'Pro' },
-    { id: 'intellectual', icon: Brain, label: 'Smart' },
-    { id: 'charisma', icon: Sparkles, label: 'Charm' },
-    { id: 'leadership', icon: Users, label: 'Lead' },
-    { id: 'humorous', icon: Laugh, label: 'Funny' },
-    { id: 'empathy', icon: Heart, label: 'Kind' },
-    { id: 'negotiation', icon: Handshake, label: 'Deal' },
-    { id: 'family', icon: Home, label: 'Kin' },
-    { id: 'parenting', icon: Baby, label: 'Parent' },
   ];
 
   const getNextReviewTime = (level: number): number => {
@@ -87,6 +82,7 @@ const App = () => {
     const savedStats = localStorage.getItem('luminary_stats');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
     const savedTheme = localStorage.getItem('luminary_theme');
+    const savedSkills = localStorage.getItem('luminary_skills');
     
     if (savedPhoto) setProfilePhoto(savedPhoto);
     if (savedTheme === 'dark') setIsDarkMode(true);
@@ -102,8 +98,15 @@ const App = () => {
             const stats = JSON.parse(savedStats);
             setStreak(stats.streak || 0);
             setLevelXp(stats.xp || 0);
-            if (stats.selectedLevel) setSelectedLevel(stats.selectedLevel);
         } catch (e) { console.error(e); }
+    }
+    if (savedSkills) {
+        try {
+            const skills = JSON.parse(savedSkills);
+            if (skills.unlocked) setUnlockedNodes(skills.unlocked);
+            if (skills.spent) setSpentXp(skills.spent);
+            if (skills.active) setActiveNodeId(skills.active);
+        } catch(e) { console.error(e); }
     }
 
     const handleBeforeInstallPrompt = (e: any) => {
@@ -154,7 +157,7 @@ const App = () => {
       const newStreak = streak + 1;
       const newXp = levelXp + 150;
       setStreak(newStreak); setLevelXp(newXp);
-      localStorage.setItem('luminary_stats', JSON.stringify({ streak: newStreak, xp: newXp, selectedLevel }));
+      localStorage.setItem('luminary_stats', JSON.stringify({ streak: newStreak, xp: newXp }));
   };
 
   const handleDeleteLesson = (id: string) => {
@@ -194,6 +197,32 @@ const App = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Skill Tree Handlers
+  const handleUnlockNode = (nodeId: string, cost: number) => {
+      if (!unlockedNodes.includes(nodeId)) {
+          const newUnlocked = [...unlockedNodes, nodeId];
+          const newSpent = spentXp + cost;
+          setUnlockedNodes(newUnlocked);
+          setSpentXp(newSpent);
+          
+          localStorage.setItem('luminary_skills', JSON.stringify({
+              unlocked: newUnlocked,
+              spent: newSpent,
+              active: activeNodeId
+          }));
+      }
+  };
+
+  const handleSelectNode = (node: SkillNode) => {
+      setActiveNodeId(node.id);
+      localStorage.setItem('luminary_skills', JSON.stringify({
+          unlocked: unlockedNodes,
+          spent: spentXp,
+          active: node.id
+      }));
+      setShowSkillTree(false);
   };
 
   const handleDownloadLesson = (lessonData: DailyLesson) => {
@@ -342,7 +371,9 @@ const App = () => {
     setAppState(AppState.LOADING);
     setLastError(null);
     try {
-      const data = await generateDailyLesson(selectedVibe, selectedLevel, selectedTheme);
+      // Derive parameters from Active Node
+      const activeNode = SKILL_TREE_DATA.find(n => n.id === activeNodeId) || SKILL_TREE_DATA[0];
+      const data = await generateDailyLesson(activeNode.targetVibe, activeNode.targetLevel, selectedTheme);
       setLesson(data);
       setStepIndex(0); 
       setCurrentSimLog([]);
@@ -411,6 +442,22 @@ const App = () => {
       );
   }
 
+  if (showSkillTree) {
+      return (
+        <div className="fixed inset-0 z-50 bg-black">
+            <SkillTreeView 
+                unlockedNodes={unlockedNodes}
+                totalXp={levelXp}
+                spentXp={spentXp}
+                onUnlock={handleUnlockNode}
+                onSelect={handleSelectNode}
+                onClose={() => setShowSkillTree(false)}
+                activeNodeId={activeNodeId}
+            />
+        </div>
+      );
+  }
+
   if (showProfile) {
     return (
       <div className="fixed inset-0 bg-surface dark:bg-[#0a0a0a] flex items-center justify-center p-4 transition-colors perspective-container z-50">
@@ -458,6 +505,9 @@ const App = () => {
       </div>
     );
   }
+
+  // Get current Active Node for display
+  const activeNodeInfo = SKILL_TREE_DATA.find(n => n.id === activeNodeId);
 
   if (appState === AppState.DASHBOARD) {
     return (
@@ -520,44 +570,28 @@ const App = () => {
                    </div>
                 </div>
 
-                {/* Level Selector - Physical Slider Look */}
+                {/* NEURAL SKILL TREE ACTIVATION */}
                 <div className="space-y-2">
                     <div className="flex justify-between items-center px-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Skill Calibration</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Active Link</span>
                     </div>
-                    <div className="bg-surface dark:bg-[#0a0a0a] p-1.5 rounded-2xl shadow-inner border border-black/5 dark:border-white/5 flex relative isolate">
-                        {(['noob', 'beginner', 'intermediate', 'advanced', 'master'] as SkillLevel[]).map((lvl) => (
-                            <button 
-                                key={lvl} 
-                                onClick={() => setSelectedLevel(lvl)}
-                                className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all duration-300 relative ${selectedLevel === lvl ? 'bg-white dark:bg-[#252529] text-indigo-600 shadow-sm z-10 scale-100 ring-1 ring-black/5 dark:ring-white/10' : 'text-gray-400 hover:text-gray-600 dark:hover:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'}`}
-                            >
-                                {lvl === 'intermediate' ? 'Inter' : lvl}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Atmosphere - The Keypad */}
-                <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 px-1">Vibe Matrix</span>
-                    <div className="grid grid-cols-5 gap-2.5 h-full content-start">
-                        {vibeOptions.map((v) => (
-                            <button 
-                                key={v.id} 
-                                onClick={() => setSelectedVibe(v.id as Vibe)}
-                                className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all duration-300 group border relative overflow-hidden ${selectedVibe === v.id ? 'bg-indigo-600 border-indigo-500 shadow-lg shadow-indigo-500/20 translate-y-[-2px]' : 'bg-surface dark:bg-[#18181b] border-transparent hover:bg-gray-100 dark:hover:bg-[#202023]'}`}
-                            >
-                                <div className={`${selectedVibe === v.id ? 'text-white' : 'text-gray-400 dark:text-gray-500 group-hover:text-indigo-500'} transition-colors`}>
-                                  <v.icon size={20} strokeWidth={2.5} />
-                                </div>
-                                <span className={`text-[8px] font-black uppercase ${selectedVibe === v.id ? 'text-indigo-100' : 'text-gray-300 dark:text-gray-600'}`}>{v.label}</span>
-                                
-                                {/* Selection Glow */}
-                                {selectedVibe === v.id && <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none"></div>}
-                            </button>
-                        ))}
-                    </div>
+                    <button 
+                        onClick={() => setShowSkillTree(true)}
+                        className="w-full bg-[#0a0a0a] text-white p-5 rounded-2xl relative overflow-hidden group shadow-lg border border-white/10"
+                    >
+                        {/* Background Grid inside button */}
+                        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:10px_10px] opacity-50 group-hover:scale-110 transition-transform duration-700"></div>
+                        <div className="relative z-10 flex justify-between items-center">
+                            <div className="text-left">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1 block">Protocol</span>
+                                <span className="text-lg font-black font-serif block">{activeNodeInfo?.label || "Unknown"}</span>
+                                <span className="text-[10px] text-gray-400">{activeNodeInfo?.description}</span>
+                            </div>
+                            <div className="w-12 h-12 rounded-full border border-indigo-500/50 flex items-center justify-center relative bg-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                                <BrainCircuit size={20} className="text-indigo-400 animate-pulse-slow" />
+                            </div>
+                        </div>
+                    </button>
                 </div>
 
                 {/* Topics - Tags */}
@@ -608,7 +642,7 @@ const App = () => {
         <h2 className="text-xl font-serif font-black text-ink dark:text-white mb-2 tracking-tight">
              <ScrambleText text="Curating Intel" />
         </h2>
-        <p className="text-gray-400 dark:text-gray-500 font-black uppercase text-[9px] tracking-[0.3em] animate-pulse">Pattern: {selectedLevel}</p>
+        <p className="text-gray-400 dark:text-gray-500 font-black uppercase text-[9px] tracking-[0.3em] animate-pulse">Running: {activeNodeInfo?.label || "Core"}</p>
       </div>
     );
   }
