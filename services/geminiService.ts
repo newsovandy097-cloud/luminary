@@ -2,35 +2,9 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 // Helper to get or create AI instance securely using the provided environment variable
+// strictly following guidelines to use process.env.API_KEY directly.
 const getAI = () => {
-  let key = '';
-  
-  // 1. Check standard process.env (Node/CRA/Next.js)
-  // We check purely for existence to avoid ReferenceErrors in strict ESM environments
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      key = process.env.API_KEY || process.env.REACT_APP_API_KEY || '';
-    }
-  } catch (e) {
-    // process is not defined
-  }
-
-  // 2. Check import.meta.env (Vite standard)
-  if (!key) {
-    try {
-      // @ts-ignore - import.meta might not be typed in all environments
-      if (typeof import.meta !== 'undefined' && import.meta.env) {
-        // @ts-ignore
-        key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || '';
-      }
-    } catch (e) {
-      // import.meta access failed
-    }
-  }
-
-  // Note: We return the client even if key is empty; the SDK will throw a clear error 
-  // if usage is attempted without a valid key, which the UI handles.
-  return new GoogleGenAI({ apiKey: key });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Audio Context & Cache Singleton

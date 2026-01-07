@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Play, Settings2, BarChart3, Laugh, Handshake, HeartHandshake } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, History, Trophy, User, BookOpen, Briefcase, PartyPopper, Brain, Heart, Download, LogOut, Award, Target, Camera, Info, Smile, Users, Scale, MessageSquare, Home, Baby, Globe, Atom, Palette, Terminal, Zap, Moon, Sun, MonitorSmartphone, PlusCircle, AlertCircle, RefreshCcw, ArrowUpCircle, Play, Settings2, BarChart3, Laugh, Handshake, HeartHandshake, Lightbulb, Radio } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { generateDailyLesson } from './services/geminiService';
 import { DailyLesson, AppState, Vibe, SimulationFeedback, SkillLevel } from './types';
@@ -19,6 +19,9 @@ const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showVault, setShowVault] = useState(false);
 
+  // Dashboard Tips State
+  const [tipIndex, setTipIndex] = useState(0);
+
   // Installation State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
@@ -35,6 +38,18 @@ const App = () => {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const tips = [
+    "Silence is a power move. Pause before replying to show confidence.",
+    "Mirror your partner's body language subtly to build instant rapport.",
+    "People forget what you said, but remember how you made them feel.",
+    "Ask open-ended questions (Who, What, How) to keep flows alive.",
+    "Using a person's name is the sweetest sound to them.",
+    "Slow down your speaking pace to appear more authoritative.",
+    "Listen to understand, not just to reply.",
+    "Palms up gestures signal openness and honesty.",
+    "Maintain eye contact for 3-5 seconds to build connection."
+  ];
 
   const vibeOptions: { id: Vibe; icon: any; label: string }[] = [
     { id: 'social', icon: PartyPopper, label: 'Social' },
@@ -63,6 +78,11 @@ const App = () => {
   };
 
   useEffect(() => {
+    // Tip Rotation
+    const interval = setInterval(() => {
+        setTipIndex(prev => (prev + 1) % tips.length);
+    }, 8000);
+
     const savedHistory = localStorage.getItem('luminary_history');
     const savedStats = localStorage.getItem('luminary_stats');
     const savedPhoto = localStorage.getItem('luminary_profile_photo');
@@ -93,7 +113,10 @@ const App = () => {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        clearInterval(interval);
+    }
   }, []);
 
   useEffect(() => {
@@ -479,6 +502,24 @@ const App = () => {
              
              <div className="flex-1 flex flex-col p-5 z-10 gap-5 overflow-y-auto hide-scrollbar">
                 
+                {/* Intel Feed / Quick Tip */}
+                <div key={tipIndex} className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 p-3 rounded-xl flex gap-3 items-center animate-fade-in shadow-sm relative overflow-hidden">
+                   {/* Decorative bar */}
+                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400/50"></div>
+                   <div className="bg-amber-100 dark:bg-amber-800/30 p-1.5 rounded-full text-amber-600 dark:text-amber-400 shrink-0 shadow-inner">
+                      <Lightbulb size={12} strokeWidth={3} />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                         <p className="text-[7px] font-black uppercase text-amber-500 dark:text-amber-500/80 tracking-widest">Tactical Intel</p>
+                         <div className="flex gap-0.5">
+                            <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span>
+                         </div>
+                      </div>
+                      <p className="text-xs font-bold text-amber-900 dark:text-amber-100 leading-tight line-clamp-2">{tips[tipIndex]}</p>
+                   </div>
+                </div>
+
                 {/* Level Selector - Physical Slider Look */}
                 <div className="space-y-2">
                     <div className="flex justify-between items-center px-1">
