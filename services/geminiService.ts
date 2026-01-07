@@ -1,15 +1,36 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
-// Helper to get or create AI instance.
+// Helper to get or create AI instance securely using the provided environment variable
 const getAI = () => {
-  // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-  const apiKey = process.env.API_KEY;
+  let key = '';
   
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please ensure process.env.API_KEY is defined.");
+  // 1. Check standard process.env (Node/CRA/Next.js)
+  // We check purely for existence to avoid ReferenceErrors in strict ESM environments
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      key = process.env.API_KEY || process.env.REACT_APP_API_KEY || '';
+    }
+  } catch (e) {
+    // process is not defined
   }
-  return new GoogleGenAI({ apiKey });
+
+  // 2. Check import.meta.env (Vite standard)
+  if (!key) {
+    try {
+      // @ts-ignore - import.meta might not be typed in all environments
+      if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore
+        key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || '';
+      }
+    } catch (e) {
+      // import.meta access failed
+    }
+  }
+
+  // Note: We return the client even if key is empty; the SDK will throw a clear error 
+  // if usage is attempted without a valid key, which the UI handles.
+  return new GoogleGenAI({ apiKey: key });
 };
 
 // Audio Context & Cache Singleton
@@ -17,6 +38,7 @@ let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   
   const vibeInstructions = {
@@ -61,7 +83,6 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   `;
 
   try {
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -157,10 +178,6 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     }
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
-    // Propagate our custom error or format the SDK error
-    if (error.message && (error.message.includes("API Key") || error.message.includes("API_KEY"))) {
-        throw new Error("Missing API Key. Ensure process.env.API_KEY is configured.");
-    }
     throw new Error(error.message || "Failed to generate lesson content.");
   }
 };
@@ -169,13 +186,13 @@ export const getSimulationReply = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string }
 ): Promise<string> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
   const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
 
   try {
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -191,6 +208,7 @@ export const getSimSuggestion = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string; objective: string }
 ): Promise<string> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
@@ -207,7 +225,6 @@ export const getSimSuggestion = async (
   `;
 
   try {
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -219,6 +236,7 @@ export const getSimSuggestion = async (
 };
 
 export const getGrammarHint = async (word: string, definition: string, fragments: string[], correctSequence: string[]): Promise<string> => {
+  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   
   const prompt = `
@@ -233,7 +251,6 @@ export const getGrammarHint = async (word: string, definition: string, fragments
   `;
 
   try {
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -248,13 +265,13 @@ export const evaluateSimulation = async (
     history: { role: string; text: string }[],
     objective: string
 ): Promise<SimulationFeedback> => {
+    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
     const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
 
     try {
-        const ai = getAI();
         const response = await ai.models.generateContent({
             model: modelId,
             contents: prompt,
@@ -279,11 +296,11 @@ export const evaluateSimulation = async (
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
+    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
 
     try {
-        const ai = getAI();
         const response = await ai.models.generateContent({
             model: modelId,
             contents: prompt,

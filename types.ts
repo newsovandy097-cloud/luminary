@@ -1,4 +1,3 @@
-
 export type Vibe = 'professional' | 'social' | 'intellectual' | 'charisma' | 'leadership' | 'humorous' | 'empathy' | 'negotiation' | 'family' | 'parenting';
 export type SkillLevel = 'noob' | 'beginner' | 'intermediate' | 'advanced' | 'master';
 
@@ -67,20 +66,4 @@ export enum AppState {
   LESSON = 'LESSON',
   COMPLETED = 'COMPLETED',
   ERROR = 'ERROR'
-}
-
-// --- Skill Tree Types ---
-
-export interface SkillNode {
-  id: string;
-  label: string;
-  description: string;
-  branch: 'diplomat' | 'orator' | 'strategist' | 'core';
-  x: number; // Percentage 0-100
-  y: number; // Percentage 0-100
-  cost: number;
-  parents: string[];
-  // Impact on generation
-  targetVibe: Vibe;
-  targetLevel: SkillLevel;
 }

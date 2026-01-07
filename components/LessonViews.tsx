@@ -40,17 +40,17 @@ export const HoloCard: React.FC<{ children: React.ReactNode, className?: string 
       const y = e.clientY - rect.top;
       const cx = rect.width / 2;
       const cy = rect.height / 2;
-      const rotateX = ((y - cy) / cy) * -2; // Reduced rotation
-      const rotateY = ((x - cx) / cx) * 2;
+      const rotateX = ((y - cy) / cy) * -3; // Max 3 deg
+      const rotateY = ((x - cx) / cx) * 3;
 
       setStyle({
-         transform: `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+         transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`,
          transition: 'transform 0.1s ease-out'
       });
    };
 
    const handleLeave = () => {
-      setStyle({ transform: 'perspective(800px) rotateX(0) rotateY(0)', transition: 'transform 0.3s ease-out' });
+      setStyle({ transform: 'perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)', transition: 'transform 0.5s ease-out' });
    }
 
    return <div ref={ref} onMouseMove={handleMove} onMouseLeave={handleLeave} style={style} className={`${className} transition-transform`}>{children}</div>
@@ -611,7 +611,6 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [feedback, setFeedback] = useState<SimulationFeedback | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -628,15 +627,6 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
       const reply = await getSimulationReply([...messages, { role: 'user', text: userMsg }], { setting: data.setting, role: data.role });
       setMessages(prev => [...prev, { role: 'model', text: reply }]);
     } catch (e) { console.error(e); } finally { setIsTyping(false); }
-  };
-
-  const handleAssist = async () => {
-    if (isSuggesting || isTyping) return;
-    setIsSuggesting(true);
-    try {
-        const suggestion = await getSimSuggestion(messages, { setting: data.setting, role: data.role, objective: data.objective });
-        setInput(suggestion);
-    } catch(e) { console.error(e); } finally { setIsSuggesting(false); }
   };
 
   const handleFinish = async () => {
@@ -695,15 +685,8 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Type response..."
-                    className="w-full bg-surface dark:bg-[#18181b] rounded-full py-4 pl-10 pr-12 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-white/50 dark:border-white/5 shadow-inner"
+                    className="w-full bg-surface dark:bg-[#18181b] rounded-full py-4 pl-5 pr-12 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-white/50 dark:border-white/5 shadow-inner"
                  />
-                 <button 
-                    onClick={handleAssist} 
-                    disabled={isSuggesting || isTyping || !!input} 
-                    className="absolute left-2 top-2 p-2 rounded-full text-indigo-400 hover:text-indigo-600 disabled:opacity-30 transition-colors"
-                 >
-                    {isSuggesting ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>}
-                 </button>
                  <button onClick={handleSend} disabled={!input.trim()} className="absolute right-2 top-2 p-2 bg-indigo-600 rounded-full text-white shadow-lg disabled:opacity-50 hover:scale-105 transition-transform"><Send size={14}/></button>
              </div>
           </div>
