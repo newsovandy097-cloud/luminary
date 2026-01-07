@@ -3,6 +3,7 @@ import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 // Helper to get or create AI instance.
 // We strictly follow the guideline to use process.env.API_KEY directly.
+// Note: This function will throw if API_KEY is missing in the browser.
 const getAI = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
@@ -12,7 +13,6 @@ let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
-  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   
   const vibeInstructions = {
@@ -57,6 +57,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -153,8 +154,8 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
     // Catch specific API key errors from the SDK
-    if (error.message?.includes("API key") || error.status === 403 || error.status === 400) {
-       throw new Error("API Key Error. Please ensure the 'API_KEY' environment variable is correctly set in your Vercel Project Settings.");
+    if (error.message?.includes("API Key") || error.message?.includes("API key") || error.status === 403) {
+       throw new Error("Missing API Key. Please set the 'API_KEY' environment variable in your Vercel Project Settings.");
     }
     throw new Error(error.message || "Failed to generate lesson content.");
   }
@@ -164,13 +165,13 @@ export const getSimulationReply = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string }
 ): Promise<string> => {
-  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
   const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -186,7 +187,6 @@ export const getSimSuggestion = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string; objective: string }
 ): Promise<string> => {
-  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
   
@@ -203,6 +203,7 @@ export const getSimSuggestion = async (
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -214,7 +215,6 @@ export const getSimSuggestion = async (
 };
 
 export const getGrammarHint = async (word: string, definition: string, fragments: string[], correctSequence: string[]): Promise<string> => {
-  const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   
   const prompt = `
@@ -229,6 +229,7 @@ export const getGrammarHint = async (word: string, definition: string, fragments
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
@@ -243,13 +244,13 @@ export const evaluateSimulation = async (
     history: { role: string; text: string }[],
     objective: string
 ): Promise<SimulationFeedback> => {
-    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
     const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
 
     try {
+        const ai = getAI();
         const response = await ai.models.generateContent({
             model: modelId,
             contents: prompt,
@@ -274,11 +275,11 @@ export const evaluateSimulation = async (
 };
 
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
-    const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
 
     try {
+        const ai = getAI();
         const response = await ai.models.generateContent({
             model: modelId,
             contents: prompt,

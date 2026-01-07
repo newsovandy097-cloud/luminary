@@ -655,7 +655,7 @@ const App = () => {
             <AlertCircle size={24} />
         </div>
         <h2 className="text-xl font-serif font-black text-ink dark:text-white mb-2">Signal Lost</h2>
-        <p className="text-gray-500 text-xs max-w-sm mb-8 px-4 leading-relaxed">{lastError || "Connection interrupted."}</p>
+        <p className="text-gray-500 text-xs max-w-md mb-8 px-4 leading-relaxed">{lastError || "Connection interrupted."}</p>
         <button onClick={handleStartLesson} className="bg-ink dark:bg-white text-white dark:text-ink px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-lg hover:-translate-y-1 transition-transform">
            <RefreshCcw size={14} /> Retry
         </button>
