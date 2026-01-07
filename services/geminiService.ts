@@ -3,9 +3,13 @@ import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 // Helper to get or create AI instance.
 // We strictly follow the guideline to use process.env.API_KEY directly.
-// Note: This function will throw if API_KEY is missing in the browser.
 const getAI = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  // Explicit check to provide a helpful error message before the SDK complains
+  if (!apiKey) {
+    throw new Error("API_KEY not found. If using Vercel, add 'API_KEY' to Environment Variables and REDEPLOY the project.");
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 // Audio Context & Cache Singleton
@@ -153,9 +157,9 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
     }
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
-    // Catch specific API key errors from the SDK
-    if (error.message?.includes("API Key") || error.message?.includes("API key") || error.status === 403) {
-       throw new Error("Missing API Key. Please set the 'API_KEY' environment variable in your Vercel Project Settings.");
+    // Propagate our custom error or format the SDK error
+    if (error.message && (error.message.includes("API Key") || error.message.includes("API_KEY"))) {
+        throw new Error("Missing API_KEY. Check Vercel Settings > Environment Variables and REDEPLOY.");
     }
     throw new Error(error.message || "Failed to generate lesson content.");
   }
