@@ -18,7 +18,7 @@ export const ScrambleText: React.FC<{ text: string, className?: string }> = ({ t
       }).join(''));
       
       if (iterations >= text.length) clearInterval(interval);
-      iterations += 1/2; // Speed control
+      iterations += 1/2;
     }, 40);
     return () => {
       clearInterval(interval);
@@ -40,7 +40,7 @@ export const HoloCard: React.FC<{ children: React.ReactNode, className?: string 
       const y = e.clientY - rect.top;
       const cx = rect.width / 2;
       const cy = rect.height / 2;
-      const rotateX = ((y - cy) / cy) * -3; // Max 3 deg
+      const rotateX = ((y - cy) / cy) * -3; 
       const rotateY = ((x - cx) / cx) * 3;
 
       setStyle({
@@ -135,7 +135,6 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
     </div>
     
     <div className="flex-1 flex flex-col min-h-0 space-y-4 overflow-y-auto hide-scrollbar pb-4">
-      {/* 3D Card for Word */}
       <HoloCard className="bg-surface dark:bg-white/5 p-5 rounded-[1.5rem] shadow-slab dark:shadow-slab-dark border border-white/50 dark:border-white/5 relative group shrink-0">
           <div className="absolute top-4 right-4 z-20">
              <button onClick={(e) => { e.stopPropagation(); handlePlay(); }} disabled={isPlaying} className="w-10 h-10 bg-white dark:bg-black text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-md">
@@ -161,7 +160,6 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
           </div>
       </HoloCard>
 
-      {/* Brain Glue - Glass Effect */}
       <div className="bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 p-4 rounded-xl border border-violet-100/50 dark:border-white/5 relative overflow-hidden backdrop-blur-sm shadow-sm shrink-0">
          <div className="relative z-10">
             <span className="text-[8px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400 mb-0.5 block">Memory Hook</span>
@@ -169,7 +167,6 @@ export const VocabularyView: React.FC<{ data: Vocabulary[]; onNext: () => void }
          </div>
       </div>
 
-      {/* Usage */}
       <div className="space-y-2 px-1 pb-2">
           <h3 className="text-[8px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-widest">Contextual Usage</h3>
           <div className="space-y-2">
@@ -280,7 +277,6 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
                     <p className="text-xs font-khmer text-indigo-600 dark:text-indigo-400 font-bold opacity-90">{current.khmerDefinition}</p>
                 </div>
 
-                {/* Drop Zone (Inset 3D) */}
                 <div className={`min-h-[100px] bg-surface dark:bg-black/40 rounded-2xl shadow-pressed flex flex-wrap content-start gap-1.5 mb-6 p-3 transition-all duration-300 ${puzzleSolved ? 'border-2 border-green-400/50 bg-green-50/20' : isWrong ? 'border-2 border-red-400/50' : 'border border-transparent'}`}>
                     {selectedWords.length === 0 && !puzzleSolved && (
                         <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-zinc-700 text-[8px] font-black uppercase tracking-widest pointer-events-none">Tap words to build</div>
@@ -296,7 +292,6 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
                     </div>
                 )}
 
-                {/* Word Pool (Floating Tiles) */}
                 <div className="flex flex-wrap justify-center gap-1.5 overflow-y-auto pb-2">
                     {scrambledWords.map((item) => (
                         <button key={item.id} onClick={() => handleWordClick(item, true)} className="bg-white dark:bg-[#18181b] text-gray-700 dark:text-zinc-300 px-3 py-1.5 rounded-lg text-xs font-bold shadow-slab dark:shadow-slab-dark border border-white/50 dark:border-white/5 hover:-translate-y-0.5 active:scale-95 transition-all">{item.text}</button>
@@ -319,6 +314,7 @@ export const VocabularyPracticeView: React.FC<{ words: Vocabulary[]; onNext: () 
 
 export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
   const [isPlayingStory, setIsPlayingStory] = useState(false);
+  const [playingVocabId, setPlayingVocabId] = useState<string | null>(null);
 
   const handlePlayStory = async () => {
     if (isPlayingStory) return;
@@ -326,9 +322,14 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
     try { await playTextToSpeech(data.story.body); } finally { setIsPlayingStory(false); }
   };
 
+  const handlePlayVocab = async (word: string) => {
+    if (playingVocabId) return;
+    setPlayingVocabId(word);
+    try { await playTextToSpeech(word); } finally { setPlayingVocabId(null); }
+  };
+
   return (
   <div className="h-full flex flex-col animate-fade-in overflow-y-auto hide-scrollbar space-y-8 pb-10">
-    {/* Header */}
     <div className="text-center space-y-2 mt-4">
       <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-white/5 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px] font-black tracking-[0.2em] uppercase">
         <History size={10} /> Recalled Session
@@ -337,16 +338,23 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
       <p className="text-[10px] font-mono text-gray-400">{data.date}</p>
     </div>
 
-    {/* Vocab Section */}
     <div className="space-y-3">
        <div className="flex items-center space-x-2 text-gray-400 font-black uppercase tracking-[0.2em] text-[9px]">
           <BookOpen size={12} /> <span>Vocabulary</span>
        </div>
        <div className="grid gap-3">
           {data.vocabularies.map((v, i) => (
-             <div key={i} className="bg-white dark:bg-[#18181b] p-4 rounded-xl border border-black/5 dark:border-white/5 shadow-sm">
+             <div key={i} className="bg-white dark:bg-[#18181b] p-4 rounded-xl border border-black/5 dark:border-white/5 shadow-sm relative group">
                 <div className="flex justify-between items-start mb-1">
-                   <h3 className="font-serif font-bold text-lg text-ink dark:text-white">{v.word}</h3>
+                   <div className="flex items-center gap-2">
+                      <h3 className="font-serif font-bold text-lg text-ink dark:text-white">{v.word}</h3>
+                      <button 
+                        onClick={() => handlePlayVocab(v.word)}
+                        className="text-gray-300 hover:text-indigo-500 transition-colors"
+                      >
+                         {playingVocabId === v.word ? <Loader2 size={12} className="animate-spin"/> : <Volume2 size={12}/>}
+                      </button>
+                   </div>
                    <span className="text-[9px] font-mono text-gray-400">/{v.pronunciation}/</span>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-zinc-400 italic mb-2">"{v.simpleDefinition}"</p>
@@ -356,7 +364,6 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
        </div>
     </div>
 
-    {/* Concept Section */}
     <div className="space-y-3">
         <div className="flex items-center space-x-2 text-gray-400 font-black uppercase tracking-[0.2em] text-[9px]">
           <Lightbulb size={12} /> <span>Core Concept</span>
@@ -371,7 +378,6 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
        </div>
     </div>
 
-    {/* Story Section */}
     <div className="space-y-3">
        <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-gray-400 font-black uppercase tracking-[0.2em] text-[9px]">
@@ -395,7 +401,6 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
        </div>
     </div>
 
-    {/* Mission Section */}
     <div className="space-y-3">
        <div className="flex items-center space-x-2 text-gray-400 font-black uppercase tracking-[0.2em] text-[9px]">
           <Target size={12} /> <span>Mission</span>
@@ -417,42 +422,18 @@ export const LessonRecapView: React.FC<{ data: DailyLesson }> = ({ data }) => {
 export const ReviewVaultView: React.FC<{ 
   words: Vocabulary[], 
   lessons: DailyLesson[], 
-  onClose: () => void, 
-  onSrsAction?: (word: any, result: 'forgot' | 'remembered') => void,
+  onClose: () => void,
   onDeleteLesson?: (id: string) => void,
   onDownloadLesson?: (lesson: DailyLesson) => void
-}> = ({ words, lessons, onClose, onSrsAction, onDeleteLesson, onDownloadLesson }) => {
+}> = ({ words, lessons, onClose, onDeleteLesson, onDownloadLesson }) => {
     const [activeTab, setActiveTab] = useState<'words' | 'artifacts'>('words');
     const [drillIndex, setDrillIndex] = useState<number | null>(null);
     const [isFlipped, setIsFlipped] = useState(false);
     const [viewingLesson, setViewingLesson] = useState<DailyLesson | null>(null);
 
-    const masteryTiers = [
-        { label: 'New', color: 'bg-gray-100 dark:bg-zinc-800 text-gray-500', border: 'border-gray-200' },
-        { label: 'Basic', color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600', border: 'border-blue-200' },
-        { label: 'Solid', color: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600', border: 'border-purple-200' },
-        { label: 'Pro', color: 'bg-indigo-900 text-white', border: 'border-indigo-800' },
-        { label: 'Master', color: 'bg-gradient-to-r from-amber-400 to-orange-500 text-white', border: 'border-amber-400' }
-    ];
-
     const playWordAudio = async (e: React.MouseEvent, word: string) => {
         e.stopPropagation();
         await playTextToSpeech(word);
-    };
-
-    const handleSrs = (res: 'forgot' | 'remembered') => {
-        if(drillIndex !== null && onSrsAction) {
-            onSrsAction(words[drillIndex], res);
-            setDrillIndex(null);
-            setIsFlipped(false);
-        }
-    };
-
-    const handleDelete = (e: React.MouseEvent, id: string) => {
-      e.stopPropagation();
-      if (window.confirm("Are you sure you want to delete this log?")) {
-        onDeleteLesson?.(id);
-      }
     };
 
     return (
@@ -479,25 +460,20 @@ export const ReviewVaultView: React.FC<{
             <div className="flex-1 overflow-y-auto hide-scrollbar pb-6 mask-gradient-b">
                 {activeTab === 'words' ? (
                     <div className="flex flex-col gap-2">
-                        {words.map((w, i) => {
-                            const tier = masteryTiers[Math.min(w.srsLevel || 0, 4)];
-                            return (
-                                <div key={i} onClick={() => { setDrillIndex(i); setIsFlipped(false); }} className={`group relative w-full rounded-xl bg-white dark:bg-[#18181b] border ${tier.border} dark:border-white/5 p-4 flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-transform shadow-slab dark:shadow-slab-dark`}>
-                                    <div className="flex items-center gap-4">
-                                         <div className={`w-1.5 self-stretch rounded-full ${tier.color.includes('bg-') ? tier.color.split(' ').find(c => c.startsWith('bg-')) : 'bg-gray-300'}`}></div>
-                                         <div>
-                                            <h4 className="font-serif font-black text-lg text-ink dark:text-white leading-none mb-1 group-hover:text-indigo-600 transition-colors">{w.word}</h4>
-                                            <p className="text-[10px] font-khmer text-gray-400 dark:text-zinc-500 truncate">{w.khmerDefinition}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-3">
-                                        <span className={`hidden sm:inline-block text-[7px] font-black uppercase px-2 py-1 rounded-md ${tier.color} tracking-wider`}>{tier.label}</span>
-                                        <button onClick={(e) => playWordAudio(e, w.word)} className="p-2 bg-surface dark:bg-white/5 rounded-full text-gray-400 hover:text-indigo-500 transition-colors"><Volume2 size={14} /></button>
+                        {words.map((w, i) => (
+                            <div key={i} onClick={() => { setDrillIndex(i); setIsFlipped(false); }} className="group relative w-full rounded-xl bg-white dark:bg-[#18181b] border border-gray-100 dark:border-white/5 p-4 flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-transform shadow-slab dark:shadow-slab-dark">
+                                <div className="flex items-center gap-4">
+                                     <div className="w-1.5 self-stretch rounded-full bg-gray-300"></div>
+                                     <div>
+                                        <h4 className="font-serif font-black text-lg text-ink dark:text-white leading-none mb-1 group-hover:text-indigo-600 transition-colors">{w.word}</h4>
+                                        <p className="text-[10px] font-khmer text-gray-400 dark:text-zinc-500 truncate">{w.khmerDefinition}</p>
                                     </div>
                                 </div>
-                            );
-                        })}
+                                <div className="flex items-center gap-3">
+                                    <button onClick={(e) => playWordAudio(e, w.word)} className="p-2 bg-surface dark:bg-white/5 rounded-full text-gray-400 hover:text-indigo-500 transition-colors"><Volume2 size={14} /></button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -511,9 +487,9 @@ export const ReviewVaultView: React.FC<{
                                     <h4 className="font-serif font-bold text-ink dark:text-white text-xs truncate">{l.concept.title}</h4>
                                 </div>
                                 <div className="flex gap-2">
-                                  <button onClick={(e) => {e.stopPropagation(); setViewingLesson(l);}} className="p-1.5 bg-indigo-50 dark:bg-white/5 rounded-full text-indigo-600 hover:bg-indigo-100 dark:hover:bg-white/10"><Eye size={12} /></button>
-                                  <button onClick={(e) => {e.stopPropagation(); onDownloadLesson?.(l);}} className="p-1.5 bg-blue-50 dark:bg-white/5 rounded-full text-blue-600 hover:bg-blue-100 dark:hover:bg-white/10"><Download size={12} /></button>
-                                  <button onClick={(e) => handleDelete(e, l.id)} className="p-1.5 bg-red-50 dark:bg-white/5 rounded-full text-red-500 hover:bg-red-100 dark:hover:bg-white/10"><Trash2 size={12} /></button>
+                                  <button onClick={(e) => {e.stopPropagation(); onDownloadLesson?.(l);}} className="p-1.5 bg-green-50 dark:bg-white/5 rounded-full text-green-600 hover:bg-green-100 dark:hover:bg-white/10" title="Download PDF"><Download size={12} /></button>
+                                  <button onClick={(e) => {e.stopPropagation(); setViewingLesson(l);}} className="p-1.5 bg-indigo-50 dark:bg-white/5 rounded-full text-indigo-600 hover:bg-indigo-100 dark:hover:bg-white/10" title="View Details"><Eye size={12} /></button>
+                                  <button onClick={(e) => {e.stopPropagation(); onDeleteLesson?.(l.id);}} className="p-1.5 bg-red-50 dark:bg-white/5 rounded-full text-red-400 hover:bg-red-100 dark:hover:bg-white/10" title="Delete Archive"><Trash2 size={12} /></button>
                                 </div>
                             </div>
                         ))}
@@ -521,20 +497,16 @@ export const ReviewVaultView: React.FC<{
                 )}
             </div>
 
-            {/* Focus View Modal (Words) */}
             {drillIndex !== null && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-ink/60 dark:bg-black/80 backdrop-blur-md animate-fade-in">
                     <div className="bg-white dark:bg-[#121212] w-full max-w-sm rounded-[3rem] p-6 shadow-3d dark:shadow-3d-dark relative animate-scale-up border border-white/20">
                         <button onClick={() => setDrillIndex(null)} className="absolute top-6 right-6 p-2 bg-surface dark:bg-white/5 rounded-full text-gray-400 hover:text-red-500 transition-colors z-20"><XCircle size={20}/></button>
-                        
                         <div className="h-72 perspective-1000 cursor-pointer mt-8" onClick={() => setIsFlipped(!isFlipped)}>
                              <div className={`w-full h-full relative preserve-3d transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`}>
-                                 {/* Front */}
                                  <div className="absolute inset-0 backface-hidden bg-surface dark:bg-black/40 rounded-[2.5rem] border border-white/50 dark:border-white/5 shadow-inner flex flex-col items-center justify-center text-center p-6">
                                      <h3 className="text-4xl font-serif font-black text-ink dark:text-white mb-4">{words[drillIndex].word}</h3>
                                      <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 animate-pulse bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 rounded-full">Tap Card</p>
                                  </div>
-                                 {/* Back */}
                                  <div className="absolute inset-0 backface-hidden rotate-y-180 bg-indigo-600 text-white rounded-[2.5rem] flex flex-col items-center justify-center text-center p-6 shadow-2xl border border-white/10">
                                      <p className="text-lg font-serif font-bold italic mb-4 leading-snug">"{words[drillIndex].simpleDefinition}"</p>
                                      <div className="w-8 h-1 bg-white/20 rounded-full mb-4"></div>
@@ -542,16 +514,10 @@ export const ReviewVaultView: React.FC<{
                                  </div>
                              </div>
                         </div>
-
-                        <div className="flex gap-3 mt-8">
-                            <button onClick={() => handleSrs('forgot')} className="flex-1 py-4 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-red-100 transition-colors border border-red-100 dark:border-red-900/30">Forgot</button>
-                            <button onClick={() => handleSrs('remembered')} className="flex-1 py-4 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-green-100 transition-colors border border-green-100 dark:border-green-900/30">Recalled</button>
-                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Full Session Recap Modal */}
             {viewingLesson && (
                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-ink/60 dark:bg-black/80 backdrop-blur-md animate-fade-in">
                   <div className="w-full max-w-lg h-[80dvh] bg-white dark:bg-[#121212] rounded-[2rem] shadow-3d dark:shadow-3d-dark relative animate-scale-up border border-white/20 flex flex-col overflow-hidden">
@@ -612,6 +578,8 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [feedback, setFeedback] = useState<SimulationFeedback | null>(null);
+  const [suggestion, setSuggestion] = useState<{ tag: string, text: string } | null>(null);
+  const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -621,6 +589,7 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
     if (!input.trim() || isTyping) return;
     const userMsg = input;
     setInput("");
+    setSuggestion(null);
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setIsTyping(true);
     try {
@@ -629,9 +598,25 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
     } catch (e) { console.error(e); } finally { setIsTyping(false); }
   };
 
+  const handleGetAssist = async () => {
+    if (isGettingSuggestion || isTyping || !!feedback) return;
+    setIsGettingSuggestion(true);
+    try {
+      const rawSuggestion = await getSimSuggestion(messages as any, data);
+      const match = rawSuggestion.match(/^\[(.*?)\]\s*(.*)$/);
+      if (match) {
+        setSuggestion({ tag: match[1], text: match[2] });
+      } else {
+        setSuggestion({ tag: "Directness", text: rawSuggestion });
+      }
+    } finally {
+      setIsGettingSuggestion(false);
+    }
+  };
+
   const handleFinish = async () => {
       try {
-          const result = await evaluateSimulation(messages, data.objective);
+          const result = await evaluateSimulation(messages as any, data.objective);
           setFeedback(result);
       } catch (e) { console.error(e); }
   };
@@ -643,11 +628,20 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
             <MessageCircle size={12} />
             <span>Voice Lab</span>
         </div>
-        <button onClick={onSkip} className="text-gray-400 hover:text-ink"><XCircle size={16}/></button>
+        <div className="flex items-center gap-4">
+             <button 
+                onClick={handleGetAssist} 
+                disabled={isGettingSuggestion || isTyping || !!feedback}
+                className={`flex items-center gap-1 text-[9px] font-black uppercase transition-colors ${isGettingSuggestion ? 'text-indigo-400' : 'text-indigo-600 hover:text-indigo-400'}`}
+             >
+                {isGettingSuggestion ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />} AI Assist
+             </button>
+             <button onClick={onSkip} className="text-gray-400 hover:text-ink transition-colors"><XCircle size={16}/></button>
+        </div>
       </div>
       
-      <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-xl mb-3 text-[9px] font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-900/30 shadow-sm shrink-0">
-         Objective: {data.objective}
+      <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-xl mb-3 text-[9px] font-bold text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-900/30 shadow-sm shrink-0 flex items-center gap-2">
+         <Radio size={10} className="animate-pulse" /> Mission: {data.objective}
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 p-1 hide-scrollbar min-h-0">
@@ -660,8 +654,23 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
             </div>
           </div>
         ))}
-        {isTyping && <div className="text-[10px] text-gray-400 ml-4 animate-pulse">Assistant is typing...</div>}
+        {isTyping && <div className="text-[10px] text-gray-400 ml-4 animate-pulse flex items-center gap-2">
+            <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce"></span>
+            <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></span>
+            <span className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></span>
+        </div>}
         
+        {suggestion && (
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 p-4 rounded-2xl animate-scale-up mt-2 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-1"><Sparkles size={8}/> Neural Suggestion</span>
+                    <span className="text-[7px] font-black uppercase bg-indigo-600 text-white px-2 py-0.5 rounded-full tracking-wider">{suggestion.tag}</span>
+                </div>
+                <p className="text-[11px] italic text-indigo-900 dark:text-indigo-200 leading-relaxed font-medium">"{suggestion.text}"</p>
+                <button onClick={() => setInput(suggestion.text)} className="text-[8px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest self-end">Apply Text</button>
+            </div>
+        )}
+
         {feedback && (
             <div className="bg-white dark:bg-[#18181b] p-5 rounded-[1.5rem] shadow-3d dark:shadow-3d-dark border border-white/50 dark:border-white/5 animate-scale-up mt-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -670,7 +679,10 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
                 </div>
                 <div className="text-3xl font-serif font-black mb-2">{feedback.score}/10</div>
                 <p className="text-xs text-gray-600 dark:text-zinc-400 mb-4 italic">"{feedback.feedback}"</p>
-                <button onClick={() => onComplete(messages, feedback)} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:-translate-y-1 transition-transform">Continue</button>
+                <div className="bg-surface dark:bg-white/5 p-3 rounded-xl mb-4 text-[11px] font-bold italic text-indigo-900 dark:text-indigo-300">
+                    "{feedback.suggestion}"
+                </div>
+                <button onClick={() => onComplete(messages as any, feedback)} className="w-full bg-ink dark:bg-white text-white dark:text-ink py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:-translate-y-1 transition-transform">Continue</button>
             </div>
         )}
         <div ref={messagesEndRef} />
@@ -687,7 +699,7 @@ export const SimulatorView: React.FC<{ data: Simulation; onComplete: (history: {
                     placeholder="Type response..."
                     className="w-full bg-surface dark:bg-[#18181b] rounded-full py-4 pl-5 pr-12 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-white/50 dark:border-white/5 shadow-inner"
                  />
-                 <button onClick={handleSend} disabled={!input.trim()} className="absolute right-2 top-2 p-2 bg-indigo-600 rounded-full text-white shadow-lg disabled:opacity-50 hover:scale-105 transition-transform"><Send size={14}/></button>
+                 <button onClick={handleSend} disabled={!input.trim() || isTyping} className="absolute right-2 top-2 p-2 bg-indigo-600 rounded-full text-white shadow-lg disabled:opacity-50 hover:scale-105 transition-transform"><Send size={14}/></button>
              </div>
           </div>
       )}
@@ -739,7 +751,6 @@ export const StoryView: React.FC<{ data: Story }> = ({ data }) => {
 
 export const ChallengeView: React.FC<{ data: Challenge; onComplete: () => void }> = ({ data, onComplete }) => (
   <div className="h-full flex flex-col justify-between relative">
-    {/* Always visible burst on mount for satisfaction? No, let's keep it simple. Actually, let's add it when they click complete or just here for the 'task' reveal feel. Let's add it on button click via prop? No, let's just leave it clean. */}
     <div className="space-y-6">
       <div className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 font-black uppercase tracking-[0.2em] text-[9px]">
         <Target size={12} />

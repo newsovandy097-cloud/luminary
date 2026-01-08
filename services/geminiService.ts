@@ -5,35 +5,25 @@ import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 const getAI = () => {
   let key = '';
   
-  // 1. Check standard process.env (Node/CRA/Next.js)
-  // We check purely for existence to avoid ReferenceErrors in strict ESM environments
   try {
     if (typeof process !== 'undefined' && process.env) {
       key = process.env.API_KEY || process.env.REACT_APP_API_KEY || '';
     }
-  } catch (e) {
-    // process is not defined
-  }
+  } catch (e) {}
 
-  // 2. Check import.meta.env (Vite standard)
   if (!key) {
     try {
-      // @ts-ignore - import.meta might not be typed in all environments
+      // @ts-ignore
       if (typeof import.meta !== 'undefined' && import.meta.env) {
         // @ts-ignore
         key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || '';
       }
-    } catch (e) {
-      // import.meta access failed
-    }
+    } catch (e) {}
   }
 
-  // Note: We return the client even if key is empty; the SDK will throw a clear error 
-  // if usage is attempted without a valid key, which the UI handles.
   return new GoogleGenAI({ apiKey: key });
 };
 
-// Audio Context & Cache Singleton
 let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 
@@ -174,7 +164,7 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
       data.level = level;
       return data;
     } else {
-      throw new Error("Empty response from AI. Possible safety filter trigger.");
+      throw new Error("Empty response from AI.");
     }
   } catch (error: any) {
     console.error("LUMINARY GENERATION ERROR:", error);
@@ -189,18 +179,13 @@ export const getSimulationReply = async (
   const ai = getAI();
   const modelId = "gemini-3-flash-preview";
   const conversation = history.map(h => `${h.role === 'user' ? 'User' : scenario.role}: ${h.text}`).join('\n');
-  
   const prompt = `Simulation: ${scenario.setting}. Role: ${scenario.role}. Conversation: ${conversation}. Respond as ${scenario.role} (under 2 sentences).`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: prompt,
-    });
+    const response = await ai.models.generateContent({ model: modelId, contents: prompt });
     return response.text || "...";
   } catch (e: any) {
-    console.error("Simulation Reply Error:", e);
-    return "The communication engine is struggling to respond. Error: " + (e.message || "");
+    return "Error: " + (e.message || "");
   }
 };
 
@@ -217,47 +202,31 @@ export const getSimSuggestion = async (
     Setting: ${scenario.setting}
     Scenario Role: ${scenario.role}
     Objective: ${scenario.objective}
-    Conversation so far:
-    ${conversation}
+    Conversation so far: ${conversation}
 
-    TASK: Suggest exactly ONE short, natural, and high-impact response for the User to say next to progress towards the objective gracefully. 
-    Output ONLY the suggestion text, no labels, no quotes.
+    TASK: Suggest exactly ONE short, natural response for the User. 
+    Prefix the suggestion with an impact tag in brackets like [+Gravitas], [+Wit], [+Warmth], [+Directness], or [+Mystery] based on the rhetorical intent.
+    Format: [Tag] Suggestion text.
+    Output ONLY the formatted suggestion.
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: prompt,
-    });
-    return response.text?.replace(/^["']|["']$/g, '').trim() || "Try asking for their thoughts on the matter.";
+    const response = await ai.models.generateContent({ model: modelId, contents: prompt });
+    return response.text?.trim() || "[+Directness] Tell me more about that.";
   } catch (e: any) {
-    return "I'm having trouble thinking of a suggestion right now.";
+    return "[+Warmth] I'm listening.";
   }
 };
 
 export const getGrammarHint = async (word: string, definition: string, fragments: string[], correctSequence: string[]): Promise<string> => {
   const ai = getAI();
   const modelId = "gemini-3-flash-preview";
-  
-  const prompt = `
-    Task: Language Tutor. 
-    Current Word: "${word}" (${definition})
-    Fragments provided: ${fragments.join(', ')}
-    Target sentence: ${correctSequence.join(' ')}
-    
-    Instruction: Give the user a tiny, helpful grammatical hint to help them figure out the next word in the sequence. 
-    Don't give them the answer directly if possible. Mention things like "Start with the subject" or "The adjective usually comes before...". 
-    Keep it under 15 words.
-  `;
-
+  const prompt = `Hint for "${word}" sequence: ${correctSequence.join(' ')}. Fragments: ${fragments.join(', ')}. One short grammatical hint (max 15 words).`;
   try {
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: prompt,
-    });
+    const response = await ai.models.generateContent({ model: modelId, contents: prompt });
     return response.text || "Try to find the main subject first.";
   } catch (e) {
-    return "Think about the structure of a standard sentence: Subject + Verb + Object.";
+    return "Think about the structure: Subject + Verb + Object.";
   }
 };
 
@@ -268,7 +237,6 @@ export const evaluateSimulation = async (
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
-
     const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
 
     try {
@@ -290,49 +258,18 @@ export const evaluateSimulation = async (
         });
         return JSON.parse(response.text || "{}") as SimulationFeedback;
     } catch (e: any) {
-        console.error("Simulation Evaluation Error:", e);
         throw new Error("Evaluation failed: " + e.message);
     }
 };
 
-export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
-    const ai = getAI();
-    const modelId = "gemini-3-flash-preview";
-    const prompt = `Word: "${word}". Def: ${definition}. Sentence: "${sentence}". JSON: { "correct": boolean, "feedback": "string" }`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: modelId,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        correct: { type: Type.BOOLEAN },
-                        feedback: { type: Type.STRING }
-                    },
-                    required: ["correct", "feedback"]
-                }
-            }
-        });
-        return JSON.parse(response.text || "{}");
-    } catch (e) {
-        return { correct: true, feedback: "Nice usage!" };
-    }
-};
-
 export const playTextToSpeech = async (text: string): Promise<void> => {
-  const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
+  const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').trim();
   if (!sanitizedText || sanitizedText.length < 2) return;
 
-  // Try Gemini TTS First
   try {
-    // Initialize Audio Context
     if (!audioContext) audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     if (audioContext.state === 'suspended') await audioContext.resume();
 
-    // CHECK CACHE FIRST
     if (audioCache.has(sanitizedText)) {
       const cachedBuffer = audioCache.get(sanitizedText);
       if (cachedBuffer) {
@@ -344,79 +281,31 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: sanitizedText }] }], // Ensure strict structure
+      contents: [{ parts: [{ text: sanitizedText }] }],
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' },
-            },
-        },
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
       },
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (base64Audio) {
       const audioBuffer = await decodeAudioData(decode(base64Audio), audioContext, 24000, 1);
-      // STORE IN CACHE
       audioCache.set(sanitizedText, audioBuffer);
       await playAudioBuffer(audioBuffer, audioContext);
-      return;
-    } else {
-        throw new Error("Gemini returned empty audio.");
     }
   } catch (error) {
-    console.warn("Gemini TTS failed, attempting fallback to browser speech...", error);
-    await playBrowserTTS(sanitizedText);
+    const utterance = new SpeechSynthesisUtterance(sanitizedText);
+    window.speechSynthesis.speak(utterance);
   }
 }
-
-// Fallback to Web Speech API
-const playBrowserTTS = (text: string): Promise<void> => {
-  return new Promise((resolve) => {
-    if (!('speechSynthesis' in window)) {
-      console.warn("Browser does not support text-to-speech.");
-      resolve();
-      return;
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Try to find a high-quality English voice
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Samantha")) 
-                        || voices.find(v => v.lang.startsWith("en"));
-    
-    if (preferredVoice) utterance.voice = preferredVoice;
-    
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    utterance.onend = () => resolve();
-    utterance.onerror = (e) => {
-        console.error("Browser TTS error:", e);
-        resolve(); // Resolve anyway to unblock UI
-    };
-
-    window.speechSynthesis.speak(utterance);
-    
-    // Safety timeout in case onend never fires
-    setTimeout(resolve, 15000);
-  });
-};
 
 async function playAudioBuffer(buffer: AudioBuffer, context: AudioContext) {
   const source = context.createBufferSource();
   source.buffer = buffer;
   source.connect(context.destination);
   source.start();
-  // Return a promise that resolves when audio finishes
-  return new Promise<void>((resolve) => {
-    source.onended = () => resolve();
-  });
+  return new Promise<void>((resolve) => { source.onended = () => resolve(); });
 }
 
 function decode(base64: string) {
@@ -427,23 +316,13 @@ function decode(base64: string) {
 }
 
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  // Use slice() to ensure we have a fresh, aligned buffer copy of just the audio data
   const alignedBuffer = data.slice().buffer;
-  
-  // Ensure strict alignment for 16-bit
-  if (alignedBuffer.byteLength % 2 !== 0) {
-      throw new Error("Audio data length is not a multiple of 2 bytes.");
-  }
-
   const dataInt16 = new Int16Array(alignedBuffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-  
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-        channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
   return buffer;
 }
