@@ -1,45 +1,23 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyLesson, Vibe, SimulationFeedback, SkillLevel } from "../types";
 
 // Helper to get or create AI instance securely using the provided environment variable
-const getAI = () => {
-  let key = '';
-  
-  // 1. Check standard process.env (Node/CRA/Next.js)
-  // We check purely for existence to avoid ReferenceErrors in strict ESM environments
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      key = process.env.API_KEY || process.env.REACT_APP_API_KEY || '';
-    }
-  } catch (e) {
-    // process is not defined
-  }
-
-  // 2. Check import.meta.env (Vite standard)
-  if (!key) {
-    try {
-      // @ts-ignore - import.meta might not be typed in all environments
-      if (typeof import.meta !== 'undefined' && import.meta.env) {
-        // @ts-ignore
-        key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || '';
-      }
-    } catch (e) {
-      // import.meta access failed
-    }
-  }
-
-  // Note: We return the client even if key is empty; the SDK will throw a clear error 
-  // if usage is attempted without a valid key, which the UI handles.
-  return new GoogleGenAI({ apiKey: key });
-};
+// Following guideline: must use new GoogleGenAI({ apiKey: process.env.API_KEY })
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Audio Context & Cache Singleton
 let audioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 
+/**
+ * Generates a full daily lesson based on vibe and skill level.
+ * Upgraded to gemini-3-pro-preview as generating a structured curriculum with 
+ * Khmer translations, mnemonics, and stories is a complex text task.
+ */
 export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFocus?: string): Promise<DailyLesson> => {
   const ai = getAI();
-  const modelId = "gemini-3-flash-preview";
+  const modelId = "gemini-3-pro-preview";
   
   const vibeInstructions = {
     professional: "Tone: Strategic, Efficient, Leadership-focused. Content: Business, career, or formal environments.",
@@ -182,6 +160,10 @@ export const generateDailyLesson = async (vibe: Vibe, level: SkillLevel, themeFo
   }
 };
 
+/**
+ * Handles conversational simulation responses.
+ * Uses gemini-3-flash-preview for low-latency conversational feedback.
+ */
 export const getSimulationReply = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string }
@@ -204,6 +186,9 @@ export const getSimulationReply = async (
   }
 };
 
+/**
+ * Provides a real-time conversational hint.
+ */
 export const getSimSuggestion = async (
   history: { role: string; text: string }[], 
   scenario: { setting: string; role: string; objective: string }
@@ -235,6 +220,9 @@ export const getSimSuggestion = async (
   }
 };
 
+/**
+ * Provides pedagogical hints for language reassembly puzzles.
+ */
 export const getGrammarHint = async (word: string, definition: string, fragments: string[], correctSequence: string[]): Promise<string> => {
   const ai = getAI();
   const modelId = "gemini-3-flash-preview";
@@ -261,12 +249,16 @@ export const getGrammarHint = async (word: string, definition: string, fragments
   }
 };
 
+/**
+ * Evaluates the user's performance in a conversation simulation.
+ * Using gemini-3-pro-preview for detailed analytical reasoning and scoring.
+ */
 export const evaluateSimulation = async (
     history: { role: string; text: string }[],
     objective: string
 ): Promise<SimulationFeedback> => {
     const ai = getAI();
-    const modelId = "gemini-3-flash-preview";
+    const modelId = "gemini-3-pro-preview";
     const conversation = history.map(h => `${h.role}: ${h.text}`).join('\n');
 
     const prompt = `Evaluate for: ${objective}. History: ${conversation}. JSON: score (1-10), feedback, suggestion.`;
@@ -295,6 +287,9 @@ export const evaluateSimulation = async (
     }
 };
 
+/**
+ * Checks word usage within a sentence.
+ */
 export const evaluateSentence = async (word: string, definition: string, sentence: string): Promise<{ correct: boolean; feedback: string }> => {
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
@@ -322,6 +317,9 @@ export const evaluateSentence = async (word: string, definition: string, sentenc
     }
 };
 
+/**
+ * Text-to-speech generation using gemini-2.5-flash-preview-tts.
+ */
 export const playTextToSpeech = async (text: string): Promise<void> => {
   const sanitizedText = text.replace(/[*_#`\[\]()<>]/g, '').replace(/\s+/g, ' ').trim();
   if (!sanitizedText || sanitizedText.length < 2) return;
@@ -344,7 +342,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: sanitizedText }] }], // Ensure strict structure
+      contents: [{ parts: [{ text: sanitizedText }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -355,7 +353,7 @@ export const playTextToSpeech = async (text: string): Promise<void> => {
       },
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioBuffer = await decodeAudioData(decode(base64Audio), audioContext, 24000, 1);
       // STORE IN CACHE
@@ -419,6 +417,9 @@ async function playAudioBuffer(buffer: AudioBuffer, context: AudioContext) {
   });
 }
 
+/**
+ * Decodes base64 string to Uint8Array.
+ */
 function decode(base64: string) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -426,6 +427,9 @@ function decode(base64: string) {
   return bytes;
 }
 
+/**
+ * Decodes raw PCM audio data returned from the API.
+ */
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   // Use slice() to ensure we have a fresh, aligned buffer copy of just the audio data
   const alignedBuffer = data.slice().buffer;

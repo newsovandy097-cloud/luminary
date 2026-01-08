@@ -3,30 +3,32 @@ export type SkillLevel = 'noob' | 'beginner' | 'intermediate' | 'advanced' | 'ma
 
 export interface Vocabulary {
   word: string;
-  partOfSpeech: string; // e.g., Noun, Verb, Adjective
+  partOfSpeech: string;
   pronunciation: string;
   definition: string;
-  simpleDefinition: string; // "In plain English"
-  khmerDefinition: string; // Khmer translation
-  mnemoLink: string; // "Brain Glue" - a memory hook
-  emotionalTrigger: string; // The "Vibe" of the word
+  simpleDefinition: string;
+  khmerDefinition: string;
+  mnemoLink: string;
+  emotionalTrigger: string;
   etymology: string;
   exampleSentences: string[];
+  srsLevel?: number; // 0-5
+  nextReviewDate?: number;
 }
 
 export interface Concept {
   title: string;
   field: string;
   explanation: string;
-  analogy: string; // "Think of it like..."
-  conversationStarters: string[]; // Array of 3 hooks
+  analogy: string;
+  conversationStarters: string[];
 }
 
 export interface Simulation {
   setting: string;
-  role: string; // The AI's persona
-  openingLine: string; // What the AI says first
-  objective: string; // What the user should try to do
+  role: string;
+  openingLine: string;
+  objective: string;
 }
 
 export interface SimulationFeedback {
@@ -48,7 +50,7 @@ export interface Challenge {
 
 export interface DailyLesson {
   id: string;
-  date: string; // Readable date string
+  date: string;
   timestamp: number;
   theme: string;
   level: SkillLevel; 
@@ -58,6 +60,19 @@ export interface DailyLesson {
   simulation: Simulation;
   story: Story;
   challenge: Challenge;
+}
+
+export interface SkillNode {
+  id: string;
+  label: string;
+  description: string;
+  icon: any; // Lucide icon component
+  targetVibe: Vibe;
+  targetLevel: SkillLevel;
+  requiredXp: number; // Cumulative XP needed to unlock (or cost)
+  cost: number;
+  dependencies: string[]; // IDs of parent nodes
+  position: { x: number, y: number }; // Percentage 0-100
 }
 
 export enum AppState {
